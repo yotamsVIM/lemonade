@@ -6,7 +6,9 @@ import snapshotRoutes from './routes/snapshots';
 import patientRoutes from './routes/patients';
 import ehrRecordRoutes from './routes/ehrRecords';
 import aiTaskRoutes from './routes/aiTasks';
+import workerRoutes from './routes/worker';
 import { errorHandler } from './middleware/errorHandler';
+import { taskWorker } from './services/taskWorker';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,6 +28,7 @@ app.use('/api/snapshots', snapshotRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/ehr-records', ehrRecordRoutes);
 app.use('/api/ai-tasks', aiTaskRoutes);
+app.use('/api/worker', workerRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -42,6 +45,12 @@ const start = async () => {
     app.listen(PORT, () => {
       console.log(`🚀 API running on port ${PORT}`);
     });
+
+    // Start AI task worker if enabled
+    if (process.env.AI_WORKER_ENABLED !== 'false') {
+      console.log('🤖 Starting AI task worker...');
+      await taskWorker.start();
+    }
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
