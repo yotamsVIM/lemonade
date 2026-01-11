@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lemonade EHR Miner</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 350px;
+      min-height: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 16px;
+      background: #f5f5f5;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .header p {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    .status {
+      background: white;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .status-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .status-item:last-child {
+      border-bottom: none;
+    }
+
+    .status-label {
+      font-size: 13px;
+      color: #666;
+    }
+
+    .status-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .status-badge.connected {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-badge.disconnected {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .controls {
+      background: white;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .control-group {
+      margin-bottom: 12px;
+    }
+
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .control-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    input[type="text"],
+    select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    input[type="text"]:focus,
+    select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .toggle-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .toggle {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 24px;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: #667eea;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(24px);
+    }
+
+    .button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .button-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .button-primary:hover:not(:disabled) {
+      background: #5568d3;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .button-secondary {
+      background: white;
+      color: #667eea;
+      border: 2px solid #667eea;
+      margin-top: 8px;
+    }
+
+    .button-secondary:hover:not(:disabled) {
+      background: #f8f9ff;
+    }
+
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .log {
+      background: white;
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .log-entry {
+      padding: 4px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-time {
+      color: #999;
+    }
+
+    .log-message {
+      color: #333;
+    }
+
+    .log-error {
+      color: #dc3545;
+    }
+
+    .log-success {
+      color: #28a745;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🍋 Lemonade EHR Miner</h1>
+    <p>DOM Snapshot Capture Tool</p>
+  </div>
+
+  <div class="status">
+    <div class="status-item">
+      <span class="status-label">Backend:</span>
+      <span id="backend-status" class="status-badge disconnected">Disconnected</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Auto-Capture:</span>
+      <span id="auto-capture-status" class="status-value">Off</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Snapshots:</span>
+      <span id="snapshot-count" class="status-value">0</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label class="control-label" for="backend-url">Backend URL</label>
+      <input type="text" id="backend-url" value="http://localhost:3000" placeholder="http://localhost:3000">
+    </div>
+
+    <div class="control-group">
+      <label class="control-label" for="patient-mrn">Patient MRN (Optional)</label>
+      <input type="text" id="patient-mrn" placeholder="Enter MRN if known">
+    </div>
+
+    <div class="control-group">
+      <div class="toggle-container">
+        <label class="control-label">Auto-Capture Mode</label>
+        <label class="toggle">
+          <input type="checkbox" id="auto-capture-toggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <button id="capture-btn" class="button button-primary">📸 Capture Current Page</button>
+  <button id="view-snapshots" class="button button-secondary">View All Snapshots</button>
+
+  <div class="log" id="log"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
