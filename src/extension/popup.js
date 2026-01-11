@@ -161,13 +161,13 @@ async function sendSnapshot(domData, sourceUrl) {
 
     const result = await response.json();
 
-    addLog('success', `Snapshot saved (ID: ${result._id.substring(0, 8)}...)`);
+    addLog('success', `Snapshot saved (ID: ${result.id.substring(0, 8)}...)`);
     config.snapshotCount++;
     updateUI();
 
     // Trigger AI extraction if configured
     if (config.autoCapture) {
-      await triggerExtraction(result._id);
+      await triggerExtraction(result.id);
     }
   } catch (error) {
     addLog('error', `Upload failed: ${error.message}`);

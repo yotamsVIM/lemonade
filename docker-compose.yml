@@ -14,6 +14,7 @@ services:
   mongodb:
     image: mongo:7
     container_name: lemonade-mongo
+    command: --bind_ip_all
     ports:
       - "27017:27017"
     environment:

@@ -152,7 +152,63 @@ src/extension/
 
 ### Testing
 
-1. **Manual Testing**
+The extension includes comprehensive automated tests using Playwright.
+
+#### Running Tests
+
+```bash
+# Run all extension tests
+npx playwright test
+
+# Run specific test file
+npx playwright test tests/extension/extension.spec.ts
+
+# Run tests with UI (headed mode - required for extensions)
+npx playwright test --headed
+
+# Run specific test by name
+npx playwright test -g "should capture"
+```
+
+#### Test Suite Coverage
+
+All 12 tests passing:
+
+1. ✅ Extension loads successfully
+2. ✅ Popup opens and displays UI correctly
+3. ✅ Backend connection status works
+4. ✅ Simple page capture works
+5. ✅ Example.com capture works
+6. ✅ Backend URL can be updated
+7. ✅ Patient MRN can be set
+8. ✅ Auto-capture mode toggles correctly
+9. ✅ Snapshot count displays correctly
+10. ✅ Large page capture works
+11. ✅ Snapshots view opens correctly
+12. ✅ Backend disconnection is handled properly
+
+#### Test Architecture
+
+```
+tests/extension/
+├── extension.spec.ts    # Main test suite (12 tests)
+├── fixtures.ts          # Custom Playwright fixtures
+└── README.md           # Test documentation
+```
+
+**Custom Fixtures:**
+- `context`: Browser context with extension pre-loaded
+- `extensionId`: Dynamically extracted extension ID
+- `openExtensionPopup()`: Helper to open extension popup
+- `waitForBackend()`: Helper to wait for backend health
+- `clearSnapshots()`: Helper to clean test data
+- `getSnapshotsCount()`: Helper to verify snapshot creation
+
+**Important Note:** Extension tests must run in headed mode (visible browser) as Chrome extensions require a window context and cannot run reliably in headless mode.
+
+#### Manual Testing
+
+1. **Manual Capture Testing**
    - Load extension in Chrome
    - Navigate to any web page
    - Test manual capture

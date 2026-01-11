@@ -9,6 +9,8 @@ export interface ILog {
 
 export interface ISnapshot extends Document {
   htmlBlob: string;           // The raw DOM (5-10MB+)
+  sourceUrl?: string;         // Original URL where snapshot was captured
+  metadata?: object;          // Metadata about the capture (title, timestamp, etc.)
   groundTruth?: object;       // From Oracle (semantic analysis)
   extractorCode?: string;     // From Forge (generated JS)
   logs: ILog[];
@@ -23,6 +25,14 @@ const SnapshotSchema = new Schema<ISnapshot>(
       type: String,
       required: true,
       // No maxlength - MongoDB supports up to 16MB per document
+    },
+    sourceUrl: {
+      type: String,
+      default: null
+    },
+    metadata: {
+      type: Schema.Types.Mixed,
+      default: null
     },
     groundTruth: {
       type: Schema.Types.Mixed,

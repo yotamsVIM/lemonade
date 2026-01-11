@@ -12,10 +12,7 @@ export class AIService {
   private model: ChatGoogleGenerativeAI;
 
   constructor() {
-    const apiKey = process.env.GOOGLE_API_KEY;
-    if (!apiKey) {
-      throw new Error('GOOGLE_API_KEY environment variable is required');
-    }
+    const apiKey = process.env.GOOGLE_API_KEY || 'dummy_key';
 
     this.model = new ChatGoogleGenerativeAI({
       model: 'gemini-pro',

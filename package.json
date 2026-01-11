@@ -13,6 +13,9 @@
     "start": "node dist/backend/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:extension": "playwright test",
+    "test:extension:ui": "playwright test --ui",
+    "test:extension:headed": "playwright test --headed",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f"

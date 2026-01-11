@@ -5,7 +5,7 @@ const router = Router();
 
 // Create snapshot
 router.post('/', async (req, res) => {
-  const { htmlBlob } = req.body;
+  const { htmlBlob, sourceUrl, metadata } = req.body;
 
   if (!htmlBlob) {
     return res.status(400).json({ error: 'htmlBlob is required' });
@@ -13,6 +13,8 @@ router.post('/', async (req, res) => {
 
   const snapshot = await Snapshot.create({
     htmlBlob,
+    sourceUrl,
+    metadata,
     status: 'NEW',
     logs: [{
       phase: 'MINER',

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import 'express-async-errors';
@@ -8,7 +9,6 @@ import ehrRecordRoutes from './routes/ehrRecords';
 import aiTaskRoutes from './routes/aiTasks';
 import workerRoutes from './routes/worker';
 import { errorHandler } from './middleware/errorHandler';
-import { taskWorker } from './services/taskWorker';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,7 +49,10 @@ const start = async () => {
     // Start AI task worker if enabled
     if (process.env.AI_WORKER_ENABLED !== 'false') {
       console.log('🤖 Starting AI task worker...');
+      const { taskWorker } = await import('./services/taskWorker');
       await taskWorker.start();
+    } else {
+      console.log('⏸️  AI task worker disabled');
     }
   } catch (error) {
     console.error('Failed to start server:', error);
