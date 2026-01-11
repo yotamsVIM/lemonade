@@ -1,23 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import request from 'supertest';
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import mongoose from 'mongoose';
 import { app } from '../src/backend/server';
+import { setupTestDatabase } from './setup';
 
 describe('Phase 1: Backend Integration Tests', () => {
-  let mongoServer: MongoMemoryServer;
-
-  beforeAll(async () => {
-    // Spin up in-memory MongoDB
-    mongoServer = await MongoMemoryServer.create();
-    const uri = mongoServer.getUri();
-    await mongoose.connect(uri);
-  });
-
-  afterAll(async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
-  });
+  setupTestDatabase();
 
   it('should handle 10MB+ HTML blob without truncation', async () => {
     // Generate a 10MB dummy string (simulating bloated EHR page)

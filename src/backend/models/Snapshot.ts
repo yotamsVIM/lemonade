@@ -55,4 +55,4 @@ const SnapshotSchema = new Schema<ISnapshot>(
   { timestamps: true }
 );
 
-export const Snapshot = mongoose.model<ISnapshot>('Snapshot', SnapshotSchema);
+export const Snapshot = mongoose.models.Snapshot || mongoose.model<ISnapshot>('Snapshot', SnapshotSchema);

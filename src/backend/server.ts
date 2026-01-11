@@ -3,6 +3,9 @@ import cors from 'cors';
 import 'express-async-errors';
 import { connectDB } from './config/db';
 import snapshotRoutes from './routes/snapshots';
+import patientRoutes from './routes/patients';
+import ehrRecordRoutes from './routes/ehrRecords';
+import aiTaskRoutes from './routes/aiTasks';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -20,6 +23,9 @@ app.use(cors({
 
 // Routes
 app.use('/api/snapshots', snapshotRoutes);
+app.use('/api/patients', patientRoutes);
+app.use('/api/ehr-records', ehrRecordRoutes);
+app.use('/api/ai-tasks', aiTaskRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

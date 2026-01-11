@@ -1,12 +1,11 @@
 {
   "name": "Lemonade AI-EHR Integration",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:20-bullseye",
+  "dockerComposeFile": "../docker-compose.devcontainer.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
 
   "features": {
     "ghcr.io/devcontainers/features/git:1": {
-      "version": "latest"
-    },
-    "ghcr.io/devcontainers-contrib/features/mongodb:1": {
       "version": "latest"
     }
   },
@@ -58,11 +57,17 @@
     }
   },
 
-  "postCreateCommand": "npm install -g pnpm && pnpm --version && sudo mkdir -p /data/db && sudo chown -R node:node /data/db && mongod --fork --logpath /var/log/mongodb.log --dbpath /data/db",
+  "postCreateCommand": "npm install -g pnpm && pnpm install && npm install -g @anthropic-ai/claude-code",
 
   "remoteUser": "node",
 
   "containerEnv": {
-    "NODE_ENV": "development"
+    "NODE_ENV": "development",
+    "MONGODB_URI": "mongodb://mongodb:27017/lemonade_dev"
+  },
+
+  "remoteEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "GEMINI_API_KEY": "${localEnv:GEMINI_API_KEY}"
   }
 }

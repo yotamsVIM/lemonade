@@ -1,6 +1,16 @@
-version: '3.8'
+version: "3.8"
 
 services:
+  devcontainer:
+    image: mcr.microsoft.com/devcontainers/typescript-node:20-bullseye
+    volumes:
+      - .:/workspace:cached
+    command: sleep infinity
+    network_mode: service:mongodb
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://localhost:27017/lemonade_dev
+
   mongodb:
     image: mongo:7
     container_name: lemonade-mongo

@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  devcontainer:
+    image: mcr.microsoft.com/devcontainers/typescript-node:20-bullseye
+    volumes:
+      - .:/workspace:cached
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: sleep infinity
+    user: node
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongodb:27017/lemonade_dev
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - lemonade-network
+
+  mongodb:
+    image: mongo:7
+    container_name: lemonade-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: lemonade_dev
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lemonade-network
+
+networks:
+  lemonade-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
