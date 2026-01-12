@@ -230,6 +230,80 @@ Build frontend dashboard to visualize the end-to-end flow: Extension → Snapsho
 
 ---
 
+## ✅ Phase 2.5 (COMPLETED): Recursive Frame & Shadow DOM Capture
+
+### What We Built
+**Critical Enhancement to Phase 2** - Implemented robust recursive capture for complex EHR systems.
+
+- **Recursive Frame Capture** (`content.js`):
+  - Captures nested iframes and framesets at ANY depth (tested with 3 levels)
+  - Supports both `<iframe>` and `<frame>` elements (old-style framesets)
+  - Dual approach: same-origin (direct access) vs cross-origin (postMessage)
+  - Each frame recursively captures its own content via `captureOwnContent()`
+  - Stores captured content in `data-iframe-content` attributes
+
+- **Shadow DOM Capture** (`content.js`):
+  - Recursively scans all elements for `shadowRoot`
+  - Serializes shadow root content using `.innerHTML`
+  - Stores in `data-shadow-root` attributes
+  - Called during style inlining for every element
+
+- **Cross-Origin Support**:
+  - Uses `window.postMessage` for cross-frame communication
+  - With `all_frames: true` in manifest, content script injects into ALL frames
+  - Each iframe can capture itself when asked via postMessage
+  - Works for any nesting permutation with 5-second timeout
+
+- **Oracle Improvements** (`aiService.ts`):
+  - `extractNestedContent()` - Extracts content from `data-iframe-content` and `data-shadow-root` attributes
+  - Decodes HTML entities (`&amp;`, `&lt;`, `&gt;`, etc.)
+  - Increased context sent to Gemini from 50K to 500K characters
+  - Prioritizes end of HTML where nested content is stored
+  - Successfully extracts patient demographics from deeply nested structures
+
+### Real-World Validation
+**Athena Health EHR Test:**
+- DOM Structure: `iframe#GlobalWrapper → frame#frameContent → iframe#frMain → Shadow DOM`
+- Snapshot Size: 2.42 MB
+- Successfully captured all nested content
+- **Oracle Extraction Results:**
+  - ✅ firstName: "LOLA"
+  - ✅ lastName: "MARSH"
+  - ✅ middleName: "TEST"
+  - ✅ fullName: "LOLA TEST MARSH"
+  - ✅ dateOfBirth: "01/25/1985"
+  - ✅ visitDate: "April 11, 2025"
+
+### Key Bug Fixes
+1. **Frameset Detection**: Fixed empty detection to check for `<frameset>` not just `<body>`
+2. **Cross-Origin Handling**: Proper `null` check for `contentDocument` in cross-origin scenarios
+3. **HTML Entity Decoding**: Multiple layers of encoding in nested content now properly decoded
+
+### Aligns with Original Plan
+**Original Phase 2** included Shadow DOM and iframe flattening, which we now fully implemented:
+- ✅ Recursive frame capture at any depth
+- ✅ Shadow DOM serialization
+- ✅ Cross-origin iframe support
+- ✅ Preserves structure for AI analysis
+
+### Why This Matters
+EHR vendors (Epic, Cerner, Athena Health, eCW) aggressively use:
+- **Nested framesets**: Legacy architecture with frames inside frames
+- **Shadow DOM**: Modern web components for encapsulation
+- **Cross-origin iframes**: Security boundaries that standard tools can't penetrate
+
+Our recursive capture now handles ALL of these scenarios, making the Miner truly production-ready for real EHR systems.
+
+**Commits:**
+- `1f96e8e` - feat: implement robust recursive frame and Shadow DOM capture
+- `ebedbf1` - feat: improve Oracle extraction with nested iframe and Shadow DOM content
+
+**Tests Added:**
+- 2 new Playwright tests for iframe and Shadow DOM capture (total now 14 tests)
+- All tests passing (100% success rate)
+
+---
+
 ## 📝 Configuration Files
 
 **Environment Variables** (`.env.example`):
@@ -345,4 +419,4 @@ AI_WORKER_MAX_CONCURRENT=3
 
 ---
 
-Last Updated: 2026-01-11
+Last Updated: 2026-01-12

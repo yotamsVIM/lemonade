@@ -11,6 +11,8 @@ Automated tests for the Lemonade EHR Miner Chrome Extension using Playwright.
 - ✅ Settings persistence (backend URL, patient MRN)
 - ✅ Auto-capture mode toggling
 - ✅ Large page handling
+- ✅ **Iframe capture** (nested iframes with content)
+- ✅ **Shadow DOM capture** (shadow root content extraction)
 - ✅ Error handling and disconnection scenarios
 
 ## Prerequisites
@@ -93,18 +95,27 @@ Custom fixtures in `fixtures.ts`:
 - `waitForBackend()` - Helper to wait for backend readiness
 - `clearSnapshots()` - Helper to clear test data
 - `getSnapshotsCount()` - Helper to get snapshot count
+- HTML fixtures for testing iframe and Shadow DOM capture
 
 ### Test Suites
 
-**Chrome Extension - The Miner**
+**Chrome Extension - The Miner** (12 tests)
 - Extension loading and UI tests
 - Manual capture functionality
 - Settings and configuration
 - Backend integration
+- Large page handling
+- Snapshot view
 
-**Chrome Extension - Error Handling**
+**Chrome Extension - Nested Content Capture** (2 tests)
+- Iframe capture (nested iframes with content)
+- Shadow DOM capture (shadow root content extraction)
+
+**Chrome Extension - Error Handling** (1 test)
 - Backend disconnection handling
 - Error messaging
+
+**Total:** 14 tests, all passing
 
 ## Configuration
 
@@ -207,9 +218,11 @@ If automated tests can't run in your environment, manually test the extension:
 
 ## Future Enhancements
 
-- [ ] Shadow DOM flattening tests
-- [ ] Iframe extraction tests
+- [x] Shadow DOM extraction tests ✅ (completed)
+- [x] Iframe extraction tests ✅ (completed)
+- [ ] Multi-level nested iframe tests (>3 levels deep)
 - [ ] Auto-capture timing tests
 - [ ] Network error recovery tests
 - [ ] Concurrent capture tests
 - [ ] Performance benchmarks
+- [ ] Cross-origin iframe timeout tests

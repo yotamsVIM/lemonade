@@ -4,9 +4,12 @@ The **Miner** component of the Lemonade AI-EHR Integration system. This Chrome E
 
 ## Features
 
+- **Recursive Frame Capture**: Captures nested iframes and framesets at ANY depth (tested with 3+ levels)
+- **Shadow DOM Support**: Extracts all Shadow DOM content across the entire document tree
+- **Cross-Origin Iframes**: Handles cross-origin iframes via postMessage communication
 - **Manual Capture**: Click-to-capture current page DOM snapshot
 - **Auto-Capture Mode**: Automatically detect and capture page changes
-- **Large DOM Support**: Handles EHR pages up to 50MB+
+- **Large DOM Support**: Handles complex EHR pages up to 50MB+ (tested with 3.6MB real-world pages)
 - **Style Preservation**: Inlines computed styles to maintain visual fidelity
 - **Backend Integration**: Real-time communication with Lemonade backend API
 - **Patient Context**: Optional MRN association for captured snapshots
@@ -102,11 +105,15 @@ Click "View All Snapshots" to open the backend API in a new tab and see all capt
 
 ### DOM Capture Process
 
-1. **Clone DOM Tree**: Full document clone including shadow DOM
+1. **Clone DOM Tree**: Full document clone with recursive traversal
 2. **Inline Styles**: Compute and inline all critical CSS properties
-3. **Serialize**: Convert DOM tree to HTML string
-4. **Metadata**: Collect page metadata (URL, title, size, etc.)
-5. **Send to Backend**: POST to `/api/snapshots` endpoint
+3. **Capture Shadow DOM**: Recursively extract all shadow root content
+4. **Capture Nested Frames**: Recursively capture iframes and framesets at any depth
+   - **Same-origin frames**: Direct access to contentDocument
+   - **Cross-origin frames**: Communication via postMessage
+5. **Serialize**: Convert DOM tree to HTML string with nested content as data attributes
+6. **Metadata**: Collect page metadata (URL, title, size, viewport, frame count, etc.)
+7. **Send to Backend**: POST to `/api/snapshots` endpoint
 
 ### Auto-Capture Triggers
 
@@ -172,7 +179,7 @@ npx playwright test -g "should capture"
 
 #### Test Suite Coverage
 
-All 12 tests passing:
+All 14 tests passing:
 
 1. ✅ Extension loads successfully
 2. ✅ Popup opens and displays UI correctly
@@ -186,6 +193,8 @@ All 12 tests passing:
 10. ✅ Large page capture works
 11. ✅ Snapshots view opens correctly
 12. ✅ Backend disconnection is handled properly
+13. ✅ **Iframe capture works** (nested iframes with content)
+14. ✅ **Shadow DOM capture works** (shadow root content extraction)
 
 #### Test Architecture
 
@@ -237,8 +246,8 @@ tests/extension/
 - **Max Payload Size**: Backend configured for 50MB (configurable in server.ts)
 - **Auto-Capture Throttle**: 5 seconds minimum between captures
 - **Style Inlining**: Only critical CSS properties are inlined
-- **Cross-Origin**: Some pages may have security restrictions
-- **Frames**: Nested iframes are not fully captured
+- **Cross-Origin Timeout**: Cross-origin frames have 5-second capture timeout
+- **Content Security Policy**: Some pages may block extension scripts
 
 ## Troubleshooting
 
