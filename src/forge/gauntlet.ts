@@ -5,7 +5,9 @@
  * and validates that it produces the expected output (ground truth).
  */
 
-import { chromium, Browser, Page } from 'playwright';
+import { chromium, Browser } from 'playwright';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 export interface GauntletResult {
   success: boolean;
@@ -145,154 +147,22 @@ export class Gauntlet {
   }
 
   /**
-   * Get pure JavaScript version of EHR_UTILS runtime library
-   *
-   * This is a browser-safe version with no TypeScript syntax
+   * Get browser-ready EHR_UTILS runtime library
+   * Loads from the pre-built browser-safe version
    */
   private getRuntimeLibrary(): string {
-    return `
-window.EHR_UTILS = {
-  queryDeep(selector, root = document) {
-    const queue = [root];
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-
-      if ('querySelector' in current) {
-        const found = current.querySelector(selector);
-        if (found) return found;
-      }
-
-      if ('querySelectorAll' in current) {
-        const elements = Array.from(current.querySelectorAll('*'));
-        for (const el of elements) {
-          if (el.shadowRoot) {
-            queue.push(el.shadowRoot);
-          }
-        }
-      }
-    }
-
-    return null;
-  },
-
-  queryAllDeep(selector, root = document) {
-    const results = [];
-    const queue = [root];
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-
-      if ('querySelectorAll' in current) {
-        const matches = Array.from(current.querySelectorAll(selector));
-        results.push(...matches);
-
-        const elements = Array.from(current.querySelectorAll('*'));
-        for (const el of elements) {
-          if (el.shadowRoot) {
-            queue.push(el.shadowRoot);
-          }
-        }
-      }
-    }
-
-    return results;
-  },
-
-  getTextDeep(element) {
-    if (!element) return '';
-
-    let text = element.textContent || '';
-
-    if (element.shadowRoot) {
-      const shadowElements = Array.from(element.shadowRoot.querySelectorAll('*'));
-      for (const el of shadowElements) {
-        text += ' ' + (el.textContent || '');
-      }
-    }
-
-    return text.trim();
-  },
-
-  getAttr(element, attr) {
-    return element?.getAttribute(attr) || null;
-  },
-
-  getIframeText(iframe) {
     try {
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (iframeDoc) {
-        return iframeDoc.body?.textContent?.trim() || null;
-      }
-    } catch (e) {
-      console.warn('Cannot access cross-origin iframe', e);
+      // Load from runtime directory
+      const runtimePath = join(__dirname, '..', 'runtime', 'ehr-utils.browser.js');
+      return readFileSync(runtimePath, 'utf-8');
+    } catch (error) {
+      // Fallback: if file not found, throw error with helpful message
+      throw new Error(
+        `Failed to load EHR_UTILS runtime library. ` +
+        `Expected location: ${join(__dirname, '..', 'runtime', 'ehr-utils.browser.js')}. ` +
+        `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
-    return null;
-  },
-
-  parseDate(dateStr) {
-    if (!dateStr) return null;
-
-    const cleaned = dateStr.trim();
-
-    try {
-      const date = new Date(cleaned);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
-      }
-    } catch (e) {
-      // Invalid date
-    }
-
-    return null;
-  },
-
-  extractTableData(table, headers) {
-    const result = {};
-
-    const headerRow = table.querySelector('thead tr, tr:first-child');
-    if (!headerRow) return result;
-
-    const headerCells = Array.from(headerRow.querySelectorAll('th, td'));
-    const headerMap = new Map();
-
-    headerCells.forEach((cell, index) => {
-      const text = cell.textContent?.trim().toLowerCase() || '';
-      for (const header of headers) {
-        if (text.includes(header.toLowerCase())) {
-          headerMap.set(index, header);
-        }
-      }
-    });
-
-    const dataRows = table.querySelectorAll('tbody tr, tr:not(:first-child)');
-    dataRows.forEach(row => {
-      const cells = Array.from(row.querySelectorAll('td, th'));
-      cells.forEach((cell, index) => {
-        const headerName = headerMap.get(index);
-        if (headerName && !result[headerName]) {
-          result[headerName] = cell.textContent?.trim() || null;
-        }
-      });
-    });
-
-    return result;
-  },
-
-  async waitForElement(selector, timeoutMs = 5000) {
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < timeoutMs) {
-      const element = this.queryDeep(selector);
-      if (element) return element;
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
-    return null;
-  }
-};
-    `.trim();
   }
 
   /**
