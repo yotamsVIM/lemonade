@@ -6,8 +6,6 @@
  */
 
 import { chromium, Browser, Page } from 'playwright';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 
 export interface GauntletResult {
   success: boolean;
@@ -65,22 +63,8 @@ export class Gauntlet {
 
       const page = await this.browser.newPage();
 
-      // Load EHR_UTILS runtime library
-      const runtimePath = join(__dirname, '../runtime/ehr-utils.ts');
-      let runtimeCode: string;
-
-      try {
-        // Try to read the compiled version first
-        runtimeCode = readFileSync(runtimePath.replace('.ts', '.js'), 'utf-8');
-      } catch {
-        // Fall back to TypeScript source (will need transpilation)
-        runtimeCode = readFileSync(runtimePath, 'utf-8');
-        // Extract just the EHR_UTILS object definition
-        const match = runtimeCode.match(/export const EHR_UTILS = \{[\s\S]+?\n\};/);
-        if (match) {
-          runtimeCode = `const EHR_UTILS = ${match[0].replace('export const EHR_UTILS = ', '')};`;
-        }
-      }
+      // Load EHR_UTILS runtime library (pure JavaScript version)
+      const runtimeCode = this.getRuntimeLibrary();
 
       try {
         // Navigate to data URL with HTML
@@ -90,11 +74,8 @@ export class Gauntlet {
         // Execute extraction in browser context
         const result = await page.evaluate(({ runtime, extractor }) => {
           try {
-            // Inject runtime library
+            // Inject runtime library (assigns to window.EHR_UTILS)
             eval(runtime);
-
-            // Make EHR_UTILS global
-            (window as any).EHR_UTILS = EHR_UTILS;
 
             // Execute extractor function
             eval(extractor);
@@ -161,6 +142,157 @@ export class Gauntlet {
         executionTime
       };
     }
+  }
+
+  /**
+   * Get pure JavaScript version of EHR_UTILS runtime library
+   *
+   * This is a browser-safe version with no TypeScript syntax
+   */
+  private getRuntimeLibrary(): string {
+    return `
+window.EHR_UTILS = {
+  queryDeep(selector, root = document) {
+    const queue = [root];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+
+      if ('querySelector' in current) {
+        const found = current.querySelector(selector);
+        if (found) return found;
+      }
+
+      if ('querySelectorAll' in current) {
+        const elements = Array.from(current.querySelectorAll('*'));
+        for (const el of elements) {
+          if (el.shadowRoot) {
+            queue.push(el.shadowRoot);
+          }
+        }
+      }
+    }
+
+    return null;
+  },
+
+  queryAllDeep(selector, root = document) {
+    const results = [];
+    const queue = [root];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+
+      if ('querySelectorAll' in current) {
+        const matches = Array.from(current.querySelectorAll(selector));
+        results.push(...matches);
+
+        const elements = Array.from(current.querySelectorAll('*'));
+        for (const el of elements) {
+          if (el.shadowRoot) {
+            queue.push(el.shadowRoot);
+          }
+        }
+      }
+    }
+
+    return results;
+  },
+
+  getTextDeep(element) {
+    if (!element) return '';
+
+    let text = element.textContent || '';
+
+    if (element.shadowRoot) {
+      const shadowElements = Array.from(element.shadowRoot.querySelectorAll('*'));
+      for (const el of shadowElements) {
+        text += ' ' + (el.textContent || '');
+      }
+    }
+
+    return text.trim();
+  },
+
+  getAttr(element, attr) {
+    return element?.getAttribute(attr) || null;
+  },
+
+  getIframeText(iframe) {
+    try {
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (iframeDoc) {
+        return iframeDoc.body?.textContent?.trim() || null;
+      }
+    } catch (e) {
+      console.warn('Cannot access cross-origin iframe', e);
+    }
+    return null;
+  },
+
+  parseDate(dateStr) {
+    if (!dateStr) return null;
+
+    const cleaned = dateStr.trim();
+
+    try {
+      const date = new Date(cleaned);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
+    } catch (e) {
+      // Invalid date
+    }
+
+    return null;
+  },
+
+  extractTableData(table, headers) {
+    const result = {};
+
+    const headerRow = table.querySelector('thead tr, tr:first-child');
+    if (!headerRow) return result;
+
+    const headerCells = Array.from(headerRow.querySelectorAll('th, td'));
+    const headerMap = new Map();
+
+    headerCells.forEach((cell, index) => {
+      const text = cell.textContent?.trim().toLowerCase() || '';
+      for (const header of headers) {
+        if (text.includes(header.toLowerCase())) {
+          headerMap.set(index, header);
+        }
+      }
+    });
+
+    const dataRows = table.querySelectorAll('tbody tr, tr:not(:first-child)');
+    dataRows.forEach(row => {
+      const cells = Array.from(row.querySelectorAll('td, th'));
+      cells.forEach((cell, index) => {
+        const headerName = headerMap.get(index);
+        if (headerName && !result[headerName]) {
+          result[headerName] = cell.textContent?.trim() || null;
+        }
+      });
+    });
+
+    return result;
+  },
+
+  async waitForElement(selector, timeoutMs = 5000) {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeoutMs) {
+      const element = this.queryDeep(selector);
+      if (element) return element;
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    return null;
+  }
+};
+    `.trim();
   }
 
   /**
