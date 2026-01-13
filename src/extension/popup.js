@@ -131,7 +131,12 @@ runE2EBtn.addEventListener('click', async () => {
     captureDataEl.textContent = `⏱️ Duration: ${captureDuration}s\nSize: ${(captureResponse.data.html.length / 1024 / 1024).toFixed(2)}MB\nURL: ${tab.url}`;
     captureDataEl.classList.add('visible');
 
-    // Step 3: Start polling for Oracle and Forge
+    // Step 3: Trigger AI extraction for E2E pipeline (always, regardless of auto-capture setting)
+    if (currentSnapshotId) {
+      await triggerExtraction(currentSnapshotId);
+    }
+
+    // Step 4: Start polling for Oracle and Forge
     addLog('info', `Polling pipeline status for snapshot ${currentSnapshotId.substring(0, 8)}...`);
     startPipelinePolling(startTime);
   } catch (error) {
