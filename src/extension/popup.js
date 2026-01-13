@@ -101,6 +101,8 @@ runE2EBtn.addEventListener('click', async () => {
   runE2EBtn.disabled = true;
   runE2EBtn.textContent = '⏳ Starting Pipeline...';
 
+  const startTime = performance.now();
+
   try {
     // Reset UI
     pipelineContainer.style.display = 'block';
@@ -120,15 +122,18 @@ runE2EBtn.addEventListener('click', async () => {
       throw new Error(captureResponse.error || 'Capture failed');
     }
 
+    const captureEndTime = performance.now();
+    const captureDuration = ((captureEndTime - startTime) / 1000).toFixed(2);
+
     // Step 2: Send to backend
     await sendSnapshot(captureResponse.data, tab.url);
     captureStatusEl.textContent = '✅';
-    captureDataEl.textContent = `Size: ${(captureResponse.data.html.length / 1024 / 1024).toFixed(2)}MB\nURL: ${tab.url}`;
+    captureDataEl.textContent = `⏱️ Duration: ${captureDuration}s\nSize: ${(captureResponse.data.html.length / 1024 / 1024).toFixed(2)}MB\nURL: ${tab.url}`;
     captureDataEl.classList.add('visible');
 
     // Step 3: Start polling for Oracle and Forge
     addLog('info', `Polling pipeline status for snapshot ${currentSnapshotId.substring(0, 8)}...`);
-    startPipelinePolling();
+    startPipelinePolling(startTime);
   } catch (error) {
     addLog('error', `E2E pipeline failed: ${error.message}`);
     captureStatusEl.textContent = '❌';
@@ -143,6 +148,8 @@ runCodeBtn.addEventListener('click', async () => {
   runCodeBtn.textContent = '⏳ Running...';
   codeResultsEl.classList.remove('visible', 'success', 'error');
 
+  const startTime = performance.now();
+
   try {
     const code = extractorCodeTextarea.value;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -153,19 +160,23 @@ runCodeBtn.addEventListener('click', async () => {
       code: code
     });
 
+    const executionTime = (performance.now() - startTime).toFixed(2);
+
     if (response.success) {
-      codeResultsEl.textContent = JSON.stringify(response.data, null, 2);
+      const resultText = `⏱️ Execution time: ${executionTime}ms\n\n${JSON.stringify(response.data, null, 2)}`;
+      codeResultsEl.textContent = resultText;
       codeResultsEl.classList.add('visible', 'success');
-      addLog('success', 'Extractor code executed successfully');
+      addLog('success', `Extractor executed in ${executionTime}ms`);
     } else {
-      codeResultsEl.textContent = `Error: ${response.error}`;
+      codeResultsEl.textContent = `⏱️ Execution time: ${executionTime}ms\n\nError: ${response.error}`;
       codeResultsEl.classList.add('visible', 'error');
-      addLog('error', `Code execution failed: ${response.error}`);
+      addLog('error', `Code execution failed after ${executionTime}ms: ${response.error}`);
     }
   } catch (error) {
-    codeResultsEl.textContent = `Error: ${error.message}`;
+    const executionTime = (performance.now() - startTime).toFixed(2);
+    codeResultsEl.textContent = `⏱️ Execution time: ${executionTime}ms\n\nError: ${error.message}`;
     codeResultsEl.classList.add('visible', 'error');
-    addLog('error', `Code execution failed: ${error.message}`);
+    addLog('error', `Code execution failed after ${executionTime}ms: ${error.message}`);
   } finally {
     runCodeBtn.disabled = false;
     runCodeBtn.textContent = '▶️ Run Code';
@@ -330,7 +341,7 @@ function resetPipelineUI() {
   codeResultsEl.classList.remove('visible', 'success', 'error');
 }
 
-function startPipelinePolling() {
+function startPipelinePolling(pipelineStartTime) {
   if (pipelinePolling) {
     clearInterval(pipelinePolling);
   }
@@ -350,7 +361,9 @@ function startPipelinePolling() {
       if (status.stages.forge.status === 'completed') {
         clearInterval(pipelinePolling);
         pipelinePolling = null;
-        addLog('success', 'E2E pipeline completed!');
+
+        const totalDuration = ((performance.now() - pipelineStartTime) / 1000).toFixed(2);
+        addLog('success', `🎉 E2E pipeline completed in ${totalDuration}s total!`);
       }
     } catch (error) {
       addLog('error', `Pipeline polling failed: ${error.message}`);
@@ -363,13 +376,26 @@ function startPipelinePolling() {
 function updatePipelineUI(pipelineStatus) {
   const { stages } = pipelineStatus;
 
+  // Calculate durations
+  const captureTime = stages.capture.timestamp ? new Date(stages.capture.timestamp) : null;
+  const oracleTime = stages.oracle.timestamp ? new Date(stages.oracle.timestamp) : null;
+  const forgeTime = stages.forge.timestamp ? new Date(stages.forge.timestamp) : null;
+
   // Update Oracle status
   if (stages.oracle.status === 'completed') {
     oracleStatusEl.textContent = '✅';
     if (stages.oracle.data) {
-      oracleDataEl.textContent = JSON.stringify(stages.oracle.data, null, 2);
+      const duration = oracleTime && captureTime
+        ? ((oracleTime - captureTime) / 1000).toFixed(2)
+        : 'N/A';
+
+      oracleDataEl.textContent = `⏱️ Duration: ${duration}s\n\n${JSON.stringify(stages.oracle.data, null, 2)}`;
       oracleDataEl.classList.add('visible');
-      addLog('success', 'Oracle extraction completed');
+
+      if (!oracleDataEl.dataset.logged) {
+        addLog('success', `Oracle extraction completed in ${duration}s`);
+        oracleDataEl.dataset.logged = 'true';
+      }
     }
   } else if (stages.oracle.status === 'processing') {
     oracleStatusEl.textContent = '⏳';
@@ -379,14 +405,21 @@ function updatePipelineUI(pipelineStatus) {
   if (stages.forge.status === 'completed') {
     forgeStatusEl.textContent = '✅';
     if (stages.forge.data && stages.forge.data.code) {
-      forgeDataEl.textContent = `Generated ${stages.forge.data.code.length} characters of code\nVerified: ${stages.forge.data.verified}`;
+      const duration = forgeTime && oracleTime
+        ? ((forgeTime - oracleTime) / 1000).toFixed(2)
+        : 'N/A';
+
+      forgeDataEl.textContent = `⏱️ Duration: ${duration}s\nGenerated: ${stages.forge.data.code.length} characters\nVerified: ${stages.forge.data.verified}`;
       forgeDataEl.classList.add('visible');
 
       // Show test section
       testSection.style.display = 'block';
       extractorCodeTextarea.value = stages.forge.data.code;
 
-      addLog('success', 'Forge code generation completed');
+      if (!forgeDataEl.dataset.logged) {
+        addLog('success', `Forge code generation completed in ${duration}s`);
+        forgeDataEl.dataset.logged = 'true';
+      }
     }
   } else if (stages.forge.status === 'processing') {
     forgeStatusEl.textContent = '⏳';
