@@ -253,6 +253,100 @@
     .log-success {
       color: #28a745;
     }
+
+    /* Pipeline Styles */
+    .pipeline-stage {
+      background: #f8f9fa;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .stage-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .stage-icon {
+      font-size: 16px;
+    }
+
+    .stage-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+      flex: 1;
+    }
+
+    .stage-status {
+      font-size: 14px;
+    }
+
+    .stage-data {
+      font-size: 11px;
+      color: #666;
+      padding: 8px;
+      background: white;
+      border-radius: 4px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: none;
+    }
+
+    .stage-data.visible {
+      display: block;
+    }
+
+    .test-section {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 2px solid #e0e0e0;
+    }
+
+    .code-textarea {
+      width: 100%;
+      min-height: 150px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      background: #f8f9fa;
+      resize: vertical;
+    }
+
+    .code-results {
+      margin-top: 8px;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: none;
+    }
+
+    .code-results.visible {
+      display: block;
+    }
+
+    .code-results.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .code-results.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
   </style>
 </head>
 <body>
@@ -300,6 +394,49 @@
 
   <button id="capture-btn" class="button button-primary">📸 Capture Current Page</button>
   <button id="view-snapshots" class="button button-secondary">View All Snapshots</button>
+  <button id="run-e2e-btn" class="button button-secondary">🚀 Run E2E Pipeline</button>
+
+  <div id="pipeline-container" class="controls" style="display: none; margin-top: 12px;">
+    <div class="control-label">E2E Pipeline Status</div>
+
+    <!-- Stage 1: Capture -->
+    <div class="pipeline-stage">
+      <div class="stage-header">
+        <span class="stage-icon">📸</span>
+        <span class="stage-title">Capture</span>
+        <span id="capture-status" class="stage-status">⏳</span>
+      </div>
+      <div id="capture-data" class="stage-data"></div>
+    </div>
+
+    <!-- Stage 2: Oracle -->
+    <div class="pipeline-stage">
+      <div class="stage-header">
+        <span class="stage-icon">🔮</span>
+        <span class="stage-title">Oracle Extraction</span>
+        <span id="oracle-status" class="stage-status">⏳</span>
+      </div>
+      <div id="oracle-data" class="stage-data"></div>
+    </div>
+
+    <!-- Stage 3: Forge -->
+    <div class="pipeline-stage">
+      <div class="stage-header">
+        <span class="stage-icon">🔨</span>
+        <span class="stage-title">Forge Code Gen</span>
+        <span id="forge-status" class="stage-status">⏳</span>
+      </div>
+      <div id="forge-data" class="stage-data"></div>
+    </div>
+
+    <!-- Test Code Section -->
+    <div id="test-section" class="test-section" style="display: none;">
+      <div class="control-label">Test Extractor Code</div>
+      <textarea id="extractor-code" class="code-textarea" readonly></textarea>
+      <button id="run-code-btn" class="button button-primary" style="margin-top: 8px;">▶️ Run Code</button>
+      <div id="code-results" class="code-results"></div>
+    </div>
+  </div>
 
   <div class="log" id="log"></div>
 

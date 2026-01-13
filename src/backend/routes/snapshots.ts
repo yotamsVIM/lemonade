@@ -62,4 +62,47 @@ router.get('/', async (req, res) => {
   res.json(snapshots);
 });
 
+// Get E2E pipeline status for a snapshot
+router.get('/:id/pipeline-status', async (req, res) => {
+  const snapshot = await Snapshot.findById(req.params.id);
+
+  if (!snapshot) {
+    return res.status(404).json({ error: 'Snapshot not found' });
+  }
+
+  // Build pipeline status based on snapshot status and data
+  const status = snapshot.status;
+  const pipelineStatus = {
+    snapshotId: snapshot._id,
+    stages: {
+      capture: {
+        status: 'completed',
+        timestamp: snapshot.createdAt,
+        data: {
+          sourceUrl: snapshot.sourceUrl,
+          size: snapshot.htmlBlob.length,
+          metadata: snapshot.metadata
+        }
+      },
+      oracle: {
+        status: status === 'NEW' ? 'pending' : (snapshot.groundTruth ? 'completed' : 'processing'),
+        timestamp: status !== 'NEW' ? snapshot.updatedAt : null,
+        data: snapshot.groundTruth || null
+      },
+      forge: {
+        status: status === 'VERIFIED' ? 'completed' : (status === 'ANNOTATED' || status === 'EXTRACTED' ? 'processing' : 'pending'),
+        timestamp: (status === 'VERIFIED' || status === 'EXTRACTED') ? snapshot.updatedAt : null,
+        data: snapshot.extractorCode ? {
+          code: snapshot.extractorCode,
+          verified: status === 'VERIFIED'
+        } : null
+      }
+    },
+    overallStatus: status,
+    logs: snapshot.logs
+  };
+
+  res.json(pipelineStatus);
+});
+
 export default router;

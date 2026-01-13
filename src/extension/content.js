@@ -23,6 +23,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Return true to indicate async response
     return true;
   }
+
+  if (message.type === 'RUN_EXTRACTOR_CODE') {
+    // Only top frame handles code execution
+    if (isTopFrame) {
+      runExtractorCode(message.code)
+        .then(data => {
+          sendResponse({ success: true, data });
+        })
+        .catch(error => {
+          sendResponse({ success: false, error: error.message });
+        });
+    }
+
+    // Return true to indicate async response
+    return true;
+  }
 });
 
 // Listen for cross-frame postMessage (for iframes)
@@ -470,6 +486,183 @@ async function throttledAutoCapture() {
       error: error.message
     });
   }
+}
+
+/**
+ * Run extractor code in the page context
+ */
+async function runExtractorCode(code) {
+  console.log('[Lemonade Miner] Running extractor code...');
+
+  try {
+    // Inject EHR_UTILS runtime library
+    if (!window.EHR_UTILS) {
+      injectEHRUtils();
+    }
+
+    // Execute the extractor code
+    const extractorFn = new Function(`
+      ${code}
+      return extract();
+    `);
+
+    const result = extractorFn();
+    console.log('[Lemonade Miner] Extraction result:', result);
+
+    return result;
+  } catch (error) {
+    console.error('[Lemonade Miner] Code execution failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Inject EHR_UTILS runtime library into page
+ */
+function injectEHRUtils() {
+  window.EHR_UTILS = {
+    queryDeep(selector, root = document) {
+      const queue = [root];
+
+      while (queue.length > 0) {
+        const current = queue.shift();
+
+        if ('querySelector' in current) {
+          const found = current.querySelector(selector);
+          if (found) return found;
+        }
+
+        if ('querySelectorAll' in current) {
+          const elements = Array.from(current.querySelectorAll('*'));
+          for (const el of elements) {
+            if (el.shadowRoot) {
+              queue.push(el.shadowRoot);
+            }
+          }
+        }
+      }
+
+      return null;
+    },
+
+    queryAllDeep(selector, root = document) {
+      const results = [];
+      const queue = [root];
+
+      while (queue.length > 0) {
+        const current = queue.shift();
+
+        if ('querySelectorAll' in current) {
+          const matches = Array.from(current.querySelectorAll(selector));
+          results.push(...matches);
+
+          const elements = Array.from(current.querySelectorAll('*'));
+          for (const el of elements) {
+            if (el.shadowRoot) {
+              queue.push(el.shadowRoot);
+            }
+          }
+        }
+      }
+
+      return results;
+    },
+
+    getTextDeep(element) {
+      if (!element) return '';
+
+      let text = element.textContent || '';
+
+      if (element.shadowRoot) {
+        const shadowElements = Array.from(element.shadowRoot.querySelectorAll('*'));
+        for (const el of shadowElements) {
+          text += ' ' + (el.textContent || '');
+        }
+      }
+
+      return text.trim();
+    },
+
+    getAttr(element, attr) {
+      return element?.getAttribute(attr) || null;
+    },
+
+    getIframeText(iframe) {
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (iframeDoc) {
+          return iframeDoc.body?.textContent?.trim() || null;
+        }
+      } catch (e) {
+        console.warn('Cannot access cross-origin iframe', e);
+      }
+      return null;
+    },
+
+    parseDate(dateStr) {
+      if (!dateStr) return null;
+
+      const cleaned = dateStr.trim();
+
+      try {
+        const date = new Date(cleaned);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        // Invalid date
+      }
+
+      return null;
+    },
+
+    extractTableData(table, headers) {
+      const result = {};
+
+      const headerRow = table.querySelector('thead tr, tr:first-child');
+      if (!headerRow) return result;
+
+      const headerCells = Array.from(headerRow.querySelectorAll('th, td'));
+      const headerMap = new Map();
+
+      headerCells.forEach((cell, index) => {
+        const text = cell.textContent?.trim().toLowerCase() || '';
+        for (const header of headers) {
+          if (text.includes(header.toLowerCase())) {
+            headerMap.set(index, header);
+          }
+        }
+      });
+
+      const dataRows = table.querySelectorAll('tbody tr, tr:not(:first-child)');
+      dataRows.forEach(row => {
+        const cells = Array.from(row.querySelectorAll('td, th'));
+        cells.forEach((cell, index) => {
+          const headerName = headerMap.get(index);
+          if (headerName && !result[headerName]) {
+            result[headerName] = cell.textContent?.trim() || null;
+          }
+        });
+      });
+
+      return result;
+    },
+
+    async waitForElement(selector, timeoutMs = 5000) {
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < timeoutMs) {
+        const element = this.queryDeep(selector);
+        if (element) return element;
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      return null;
+    }
+  };
+
+  console.log('[Lemonade Miner] EHR_UTILS runtime injected');
 }
 
 console.log('[Lemonade Miner] Content script loaded');

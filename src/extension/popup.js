@@ -21,7 +21,25 @@ const patientMrnInput = document.getElementById('patient-mrn');
 const autoCaptureToggle = document.getElementById('auto-capture-toggle');
 const captureBtn = document.getElementById('capture-btn');
 const viewSnapshotsBtn = document.getElementById('view-snapshots');
+const runE2EBtn = document.getElementById('run-e2e-btn');
 const logContainer = document.getElementById('log');
+
+// E2E Pipeline elements
+const pipelineContainer = document.getElementById('pipeline-container');
+const captureStatusEl = document.getElementById('capture-status');
+const captureDataEl = document.getElementById('capture-data');
+const oracleStatusEl = document.getElementById('oracle-status');
+const oracleDataEl = document.getElementById('oracle-data');
+const forgeStatusEl = document.getElementById('forge-status');
+const forgeDataEl = document.getElementById('forge-data');
+const testSection = document.getElementById('test-section');
+const extractorCodeTextarea = document.getElementById('extractor-code');
+const runCodeBtn = document.getElementById('run-code-btn');
+const codeResultsEl = document.getElementById('code-results');
+
+// Pipeline state
+let currentSnapshotId = null;
+let pipelinePolling = null;
 
 // Event listeners
 backendUrlInput.addEventListener('change', (e) => {
@@ -77,6 +95,81 @@ viewSnapshotsBtn.addEventListener('click', () => {
   chrome.tabs.create({
     url: `${config.backendUrl}/api/snapshots`
   });
+});
+
+runE2EBtn.addEventListener('click', async () => {
+  runE2EBtn.disabled = true;
+  runE2EBtn.textContent = '⏳ Starting Pipeline...';
+
+  try {
+    // Reset UI
+    pipelineContainer.style.display = 'block';
+    testSection.style.display = 'none';
+    resetPipelineUI();
+
+    // Step 1: Capture
+    addLog('info', 'Starting E2E pipeline...');
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    captureStatusEl.textContent = '⏳';
+    const captureResponse = await chrome.tabs.sendMessage(tab.id, {
+      type: 'CAPTURE_DOM'
+    });
+
+    if (!captureResponse.success) {
+      throw new Error(captureResponse.error || 'Capture failed');
+    }
+
+    // Step 2: Send to backend
+    await sendSnapshot(captureResponse.data, tab.url);
+    captureStatusEl.textContent = '✅';
+    captureDataEl.textContent = `Size: ${(captureResponse.data.html.length / 1024 / 1024).toFixed(2)}MB\nURL: ${tab.url}`;
+    captureDataEl.classList.add('visible');
+
+    // Step 3: Start polling for Oracle and Forge
+    addLog('info', `Polling pipeline status for snapshot ${currentSnapshotId.substring(0, 8)}...`);
+    startPipelinePolling();
+  } catch (error) {
+    addLog('error', `E2E pipeline failed: ${error.message}`);
+    captureStatusEl.textContent = '❌';
+  } finally {
+    runE2EBtn.disabled = false;
+    runE2EBtn.textContent = '🚀 Run E2E Pipeline';
+  }
+});
+
+runCodeBtn.addEventListener('click', async () => {
+  runCodeBtn.disabled = true;
+  runCodeBtn.textContent = '⏳ Running...';
+  codeResultsEl.classList.remove('visible', 'success', 'error');
+
+  try {
+    const code = extractorCodeTextarea.value;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    // Send code to content script for execution
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: 'RUN_EXTRACTOR_CODE',
+      code: code
+    });
+
+    if (response.success) {
+      codeResultsEl.textContent = JSON.stringify(response.data, null, 2);
+      codeResultsEl.classList.add('visible', 'success');
+      addLog('success', 'Extractor code executed successfully');
+    } else {
+      codeResultsEl.textContent = `Error: ${response.error}`;
+      codeResultsEl.classList.add('visible', 'error');
+      addLog('error', `Code execution failed: ${response.error}`);
+    }
+  } catch (error) {
+    codeResultsEl.textContent = `Error: ${error.message}`;
+    codeResultsEl.classList.add('visible', 'error');
+    addLog('error', `Code execution failed: ${error.message}`);
+  } finally {
+    runCodeBtn.disabled = false;
+    runCodeBtn.textContent = '▶️ Run Code';
+  }
 });
 
 // Functions
@@ -160,6 +253,7 @@ async function sendSnapshot(domData, sourceUrl) {
     }
 
     const result = await response.json();
+    currentSnapshotId = result.id; // Store for E2E pipeline
 
     addLog('success', `Snapshot saved (ID: ${result.id.substring(0, 8)}...)`);
     config.snapshotCount++;
@@ -219,6 +313,83 @@ function addLog(type, message) {
   // Keep only last 20 entries
   while (logContainer.children.length > 20) {
     logContainer.removeChild(logContainer.lastChild);
+  }
+}
+
+// E2E Pipeline Functions
+function resetPipelineUI() {
+  captureStatusEl.textContent = '⏳';
+  oracleStatusEl.textContent = '⏳';
+  forgeStatusEl.textContent = '⏳';
+  captureDataEl.textContent = '';
+  oracleDataEl.textContent = '';
+  forgeDataEl.textContent = '';
+  captureDataEl.classList.remove('visible');
+  oracleDataEl.classList.remove('visible');
+  forgeDataEl.classList.remove('visible');
+  codeResultsEl.classList.remove('visible', 'success', 'error');
+}
+
+function startPipelinePolling() {
+  if (pipelinePolling) {
+    clearInterval(pipelinePolling);
+  }
+
+  // Poll every 2 seconds
+  pipelinePolling = setInterval(async () => {
+    try {
+      const response = await fetch(`${config.backendUrl}/api/snapshots/${currentSnapshotId}/pipeline-status`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch pipeline status');
+      }
+
+      const status = await response.json();
+      updatePipelineUI(status);
+
+      // Stop polling if all stages complete
+      if (status.stages.forge.status === 'completed') {
+        clearInterval(pipelinePolling);
+        pipelinePolling = null;
+        addLog('success', 'E2E pipeline completed!');
+      }
+    } catch (error) {
+      addLog('error', `Pipeline polling failed: ${error.message}`);
+      clearInterval(pipelinePolling);
+      pipelinePolling = null;
+    }
+  }, 2000);
+}
+
+function updatePipelineUI(pipelineStatus) {
+  const { stages } = pipelineStatus;
+
+  // Update Oracle status
+  if (stages.oracle.status === 'completed') {
+    oracleStatusEl.textContent = '✅';
+    if (stages.oracle.data) {
+      oracleDataEl.textContent = JSON.stringify(stages.oracle.data, null, 2);
+      oracleDataEl.classList.add('visible');
+      addLog('success', 'Oracle extraction completed');
+    }
+  } else if (stages.oracle.status === 'processing') {
+    oracleStatusEl.textContent = '⏳';
+  }
+
+  // Update Forge status
+  if (stages.forge.status === 'completed') {
+    forgeStatusEl.textContent = '✅';
+    if (stages.forge.data && stages.forge.data.code) {
+      forgeDataEl.textContent = `Generated ${stages.forge.data.code.length} characters of code\nVerified: ${stages.forge.data.verified}`;
+      forgeDataEl.classList.add('visible');
+
+      // Show test section
+      testSection.style.display = 'block';
+      extractorCodeTextarea.value = stages.forge.data.code;
+
+      addLog('success', 'Forge code generation completed');
+    }
+  } else if (stages.forge.status === 'processing') {
+    forgeStatusEl.textContent = '⏳';
   }
 }
 
