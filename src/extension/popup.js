@@ -6,12 +6,27 @@ let config = {
   snapshotCount: 0
 };
 
-// Load config from storage on startup
-chrome.storage.local.get(['config'], (result) => {
+// Load config and pipeline state from storage on startup
+chrome.storage.local.get(['config', 'pipelineState'], (result) => {
   if (result.config) {
     config = { ...config, ...result.config };
     updateUI();
   }
+
+  // Restore ongoing pipeline if exists
+  if (result.pipelineState && result.pipelineState.snapshotId) {
+    console.log('[Popup] Restoring pipeline state:', result.pipelineState);
+    currentSnapshotId = result.pipelineState.snapshotId;
+    pipelineStartTime = result.pipelineState.startTime;
+
+    // Show pipeline UI
+    pipelineContainer.style.display = 'block';
+
+    // Resume polling
+    addLog('info', `Resuming pipeline for snapshot ${currentSnapshotId.substring(0, 8)}...`);
+    startPipelinePolling(pipelineStartTime);
+  }
+
   checkBackendHealth();
 });
 
@@ -40,6 +55,7 @@ const codeResultsEl = document.getElementById('code-results');
 // Pipeline state
 let currentSnapshotId = null;
 let pipelinePolling = null;
+let pipelineStartTime = null;
 
 // Event listeners
 backendUrlInput.addEventListener('change', (e) => {
@@ -136,12 +152,17 @@ runE2EBtn.addEventListener('click', async () => {
       await triggerExtraction(currentSnapshotId);
     }
 
-    // Step 4: Start polling for Oracle and Forge
+    // Step 4: Save pipeline state and start polling
+    pipelineStartTime = startTime;
+    savePipelineState();
     addLog('info', `Polling pipeline status for snapshot ${currentSnapshotId.substring(0, 8)}...`);
     startPipelinePolling(startTime);
   } catch (error) {
     addLog('error', `E2E pipeline failed: ${error.message}`);
     captureStatusEl.textContent = '❌';
+
+    // Clear pipeline state on error
+    clearPipelineState();
   } finally {
     runE2EBtn.disabled = false;
     runE2EBtn.textContent = '🚀 Run E2E Pipeline';
@@ -193,6 +214,21 @@ function saveConfig() {
   chrome.storage.local.set({ config }, () => {
     addLog('info', 'Settings saved');
   });
+}
+
+function savePipelineState() {
+  if (currentSnapshotId) {
+    chrome.storage.local.set({
+      pipelineState: {
+        snapshotId: currentSnapshotId,
+        startTime: pipelineStartTime
+      }
+    });
+  }
+}
+
+function clearPipelineState() {
+  chrome.storage.local.remove('pipelineState');
 }
 
 function updateUI() {
@@ -369,11 +405,17 @@ function startPipelinePolling(pipelineStartTime) {
 
         const totalDuration = ((performance.now() - pipelineStartTime) / 1000).toFixed(2);
         addLog('success', `🎉 E2E pipeline completed in ${totalDuration}s total!`);
+
+        // Clear pipeline state from storage
+        clearPipelineState();
       }
     } catch (error) {
       addLog('error', `Pipeline polling failed: ${error.message}`);
       clearInterval(pipelinePolling);
       pipelinePolling = null;
+
+      // Clear pipeline state on error
+      clearPipelineState();
     }
   }, 2000);
 }
