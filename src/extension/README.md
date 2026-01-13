@@ -8,7 +8,7 @@ The **Miner** component of the Lemonade AI-EHR Integration system. This Chrome E
 - **Shadow DOM Support**: Extracts all Shadow DOM content across the entire document tree
 - **Cross-Origin Iframes**: Handles cross-origin iframes via postMessage communication
 - **Manual Capture**: Click-to-capture current page DOM snapshot
-- **Auto-Capture Mode**: Automatically detect and capture page changes
+- **Auto-Infer Mode**: Automatically detect and capture page changes
 - **Large DOM Support**: Handles complex EHR pages up to 50MB+ (tested with 3.6MB real-world pages)
 - **Style Preservation**: Inlines computed styles to maintain visual fidelity
 - **Backend Integration**: Real-time communication with Lemonade backend API
@@ -75,8 +75,8 @@ The **Miner** component of the Lemonade AI-EHR Integration system. This Chrome E
    - Enter a patient MRN to associate captures with a specific patient
    - Leave blank for general snapshots
 
-3. **Enable Auto-Capture (Optional)**
-   - Toggle "Auto-Capture Mode" to automatically capture page changes
+3. **Enable Auto-Infer (Optional)**
+   - Toggle "Auto-Infer Mode" to automatically capture page changes
    - Recommended for SPAs or dynamic EHR systems
 
 ## Usage
@@ -89,9 +89,9 @@ The **Miner** component of the Lemonade AI-EHR Integration system. This Chrome E
 4. Wait for confirmation in the activity log
 5. Snapshot is automatically sent to backend and queued for AI extraction
 
-### Auto-Capture Mode
+### Auto-Infer Mode
 
-1. Enable "Auto-Capture Mode" toggle in the extension popup
+1. Enable "Auto-Infer Mode" toggle in the extension popup
 2. Navigate normally through your EHR system
 3. The extension will automatically detect significant page changes
 4. Captures are throttled to max 1 per 5 seconds to avoid spam
@@ -115,7 +115,7 @@ Click "View All Snapshots" to open the backend API in a new tab and see all capt
 6. **Metadata**: Collect page metadata (URL, title, size, viewport, frame count, etc.)
 7. **Send to Backend**: POST to `/api/snapshots` endpoint
 
-### Auto-Capture Triggers
+### Auto-Infer Triggers
 
 - **DOM Mutations**: Detects significant DOM changes (10+ new nodes)
 - **URL Changes**: Monitors for SPA navigation
@@ -188,7 +188,7 @@ All 14 tests passing:
 5. ✅ Example.com capture works
 6. ✅ Backend URL can be updated
 7. ✅ Patient MRN can be set
-8. ✅ Auto-capture mode toggles correctly
+8. ✅ Auto-infer mode toggles correctly
 9. ✅ Snapshot count displays correctly
 10. ✅ Large page capture works
 11. ✅ Snapshots view opens correctly
@@ -223,8 +223,8 @@ tests/extension/
    - Test manual capture
    - Verify backend receives snapshot
 
-2. **Auto-Capture Testing**
-   - Enable auto-capture mode
+2. **Auto-Infer Testing**
+   - Enable auto-infer mode
    - Navigate through a multi-page site
    - Check extension logs for captures
    - Verify throttling works (max 1 per 5 sec)
@@ -244,7 +244,7 @@ tests/extension/
 ## Limitations
 
 - **Max Payload Size**: Backend configured for 50MB (configurable in server.ts)
-- **Auto-Capture Throttle**: 5 seconds minimum between captures
+- **Auto-Infer Throttle**: 5 seconds minimum between captures
 - **Style Inlining**: Only critical CSS properties are inlined
 - **Cross-Origin Timeout**: Cross-origin frames have 5-second capture timeout
 - **Content Security Policy**: Some pages may block extension scripts
@@ -272,7 +272,7 @@ tests/extension/
 - Look for network errors in DevTools
 - Verify MongoDB is running and connected
 
-### Auto-Capture Not Working
+### Auto-Infer Not Working
 
 - Ensure toggle is enabled
 - Check content script is loaded (refresh page after enabling)

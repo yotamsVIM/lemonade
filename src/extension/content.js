@@ -404,18 +404,18 @@ async function inlineStyles(sourceElement, targetElement) {
 }
 
 /**
- * Listen for auto-capture triggers
+ * Listen for auto-infer triggers
  */
-let autoCaptureEnabled = false;
+let autoInferEnabled = false;
 let lastCapture = 0;
-const CAPTURE_THROTTLE = 5000; // 5 seconds minimum between auto-captures
+const CAPTURE_THROTTLE = 5000; // 5 seconds minimum between auto-infers
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'SET_AUTO_CAPTURE') {
-    autoCaptureEnabled = message.enabled;
-    console.log(`[Lemonade Miner] Auto-capture ${autoCaptureEnabled ? 'enabled' : 'disabled'}`);
+  if (message.type === 'SET_AUTO_INFER') {
+    autoInferEnabled = message.enabled;
+    console.log(`[Lemonade Miner] Auto-infer ${autoInferEnabled ? 'enabled' : 'disabled'}`);
 
-    if (autoCaptureEnabled) {
+    if (autoInferEnabled) {
       setupAutoCaptureListeners();
     } else {
       removeAutoCaptureListeners();
@@ -423,7 +423,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Auto-capture triggers
+// Auto-infer triggers
 let captureObserver = null;
 
 function setupAutoCaptureListeners() {
@@ -464,25 +464,25 @@ function removeAutoCaptureListeners() {
 async function throttledAutoCapture() {
   const now = Date.now();
   if (now - lastCapture < CAPTURE_THROTTLE) {
-    console.log('[Lemonade Miner] Auto-capture throttled');
+    console.log('[Lemonade Miner] Auto-infer throttled');
     return;
   }
 
   lastCapture = now;
-  console.log('[Lemonade Miner] Auto-capture triggered');
+  console.log('[Lemonade Miner] Auto-infer triggered');
 
   try {
     const data = await captureDOMSnapshot();
 
     // Send to background script for processing
     chrome.runtime.sendMessage({
-      type: 'AUTO_CAPTURE_DATA',
+      type: 'AUTO_INFER_DATA',
       data: data
     });
   } catch (error) {
-    console.error('[Lemonade Miner] Auto-capture failed:', error);
+    console.error('[Lemonade Miner] Auto-infer failed:', error);
     chrome.runtime.sendMessage({
-      type: 'AUTO_CAPTURE_ERROR',
+      type: 'AUTO_INFER_ERROR',
       error: error.message
     });
   }

@@ -1,11 +1,11 @@
 /**
  * Background service worker for Chrome Extension
- * Handles auto-capture coordination and background tasks
+ * Handles auto-infer coordination and background tasks
  */
 
 let config = {
   backendUrl: 'http://localhost:3000',
-  autoCapture: false,
+  autoInfer: false,
   patientMrn: ''
 };
 
@@ -26,17 +26,17 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 // Handle messages from popup and content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.type) {
-    case 'TOGGLE_AUTO_CAPTURE':
+    case 'TOGGLE_AUTO_INFER':
       handleAutoCaptureToggle(message.enabled, sender);
       break;
 
-    case 'AUTO_CAPTURE_DATA':
+    case 'AUTO_INFER_DATA':
       handleAutoCapture(message.data, sender);
       break;
 
-    case 'AUTO_CAPTURE_ERROR':
-      console.error('[Lemonade Miner] Auto-capture error:', message.error);
-      notifyPopup('AUTO_CAPTURE_ERROR', { error: message.error });
+    case 'AUTO_INFER_ERROR':
+      console.error('[Lemonade Miner] Auto-infer error:', message.error);
+      notifyPopup('AUTO_INFER_ERROR', { error: message.error });
       break;
 
     default:
@@ -45,10 +45,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 /**
- * Handle auto-capture toggle
+ * Handle auto-infer toggle
  */
 async function handleAutoCaptureToggle(enabled, sender) {
-  console.log(`[Lemonade Miner] Auto-capture ${enabled ? 'enabled' : 'disabled'}`);
+  console.log(`[Lemonade Miner] Auto-infer ${enabled ? 'enabled' : 'disabled'}`);
 
   // Get all tabs and send message to content scripts
   const tabs = await chrome.tabs.query({});
@@ -56,7 +56,7 @@ async function handleAutoCaptureToggle(enabled, sender) {
   for (const tab of tabs) {
     try {
       await chrome.tabs.sendMessage(tab.id, {
-        type: 'SET_AUTO_CAPTURE',
+        type: 'SET_AUTO_INFER',
         enabled: enabled
       });
     } catch (error) {
@@ -66,10 +66,10 @@ async function handleAutoCaptureToggle(enabled, sender) {
 }
 
 /**
- * Handle auto-captured data
+ * Handle auto-inferd data
  */
 async function handleAutoCapture(data, sender) {
-  console.log(`[Lemonade Miner] Processing auto-capture: ${(data.size / 1024 / 1024).toFixed(2)}MB`);
+  console.log(`[Lemonade Miner] Processing auto-infer: ${(data.size / 1024 / 1024).toFixed(2)}MB`);
 
   try {
     const tab = await chrome.tabs.get(sender.tab.id);
@@ -107,7 +107,7 @@ async function handleAutoCapture(data, sender) {
     await queueExtraction(result._id);
 
     // Notify popup of success
-    notifyPopup('AUTO_CAPTURE_COMPLETE', { snapshotId: result._id });
+    notifyPopup('AUTO_INFER_COMPLETE', { snapshotId: result._id });
 
     // Show notification to user
     chrome.notifications.create({
@@ -118,8 +118,8 @@ async function handleAutoCapture(data, sender) {
       priority: 1
     });
   } catch (error) {
-    console.error('[Lemonade Miner] Auto-capture upload failed:', error);
-    notifyPopup('AUTO_CAPTURE_ERROR', { error: error.message });
+    console.error('[Lemonade Miner] Auto-infer upload failed:', error);
+    notifyPopup('AUTO_INFER_ERROR', { error: error.message });
   }
 }
 

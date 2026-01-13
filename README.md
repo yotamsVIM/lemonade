@@ -87,7 +87,7 @@ lemonade/
 - **Shadow DOM capture** at all levels
 - Cross-origin iframe support via postMessage
 - Style preservation with computed CSS inlining
-- Manual and auto-capture modes
+- Manual and auto-infer modes
 - E2E pipeline testing UI with real-time status
 - **14 passing E2E tests with Playwright**
 
@@ -153,8 +153,8 @@ lemonade/
    - View performance metrics for each stage
    - Test generated extractor code with "▶️ Run Code"
 
-4. **Enable Auto-Capture:**
-   - Toggle "Auto-Capture Mode" in extension popup
+4. **Enable Auto-Infer:**
+   - Toggle "Auto-Infer Mode" in extension popup
    - Extension automatically captures page changes
    - Throttled to max 1 capture per 5 seconds
 

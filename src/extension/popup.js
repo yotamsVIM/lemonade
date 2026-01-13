@@ -1,7 +1,7 @@
 // State management
 let config = {
   backendUrl: 'http://localhost:3000',
-  autoCapture: false,
+  autoInfer: false,
   patientMrn: '',
   snapshotCount: 0
 };
@@ -18,7 +18,7 @@ chrome.storage.local.get(['config'], (result) => {
 // DOM elements
 const backendUrlInput = document.getElementById('backend-url');
 const patientMrnInput = document.getElementById('patient-mrn');
-const autoCaptureToggle = document.getElementById('auto-capture-toggle');
+const autoInferToggle = document.getElementById('auto-infer-toggle');
 const captureBtn = document.getElementById('capture-btn');
 const viewSnapshotsBtn = document.getElementById('view-snapshots');
 const runE2EBtn = document.getElementById('run-e2e-btn');
@@ -53,15 +53,15 @@ patientMrnInput.addEventListener('change', (e) => {
   saveConfig();
 });
 
-autoCaptureToggle.addEventListener('change', (e) => {
-  config.autoCapture = e.target.checked;
+autoInferToggle.addEventListener('change', (e) => {
+  config.autoInfer = e.target.checked;
   saveConfig();
   updateUI();
 
   // Send message to background script
   chrome.runtime.sendMessage({
-    type: 'TOGGLE_AUTO_CAPTURE',
-    enabled: config.autoCapture
+    type: 'TOGGLE_AUTO_INFER',
+    enabled: config.autoInfer
   });
 });
 
@@ -131,7 +131,7 @@ runE2EBtn.addEventListener('click', async () => {
     captureDataEl.textContent = `⏱️ Duration: ${captureDuration}s\nSize: ${(captureResponse.data.html.length / 1024 / 1024).toFixed(2)}MB\nURL: ${tab.url}`;
     captureDataEl.classList.add('visible');
 
-    // Step 3: Trigger AI extraction for E2E pipeline (always, regardless of auto-capture setting)
+    // Step 3: Trigger AI extraction for E2E pipeline (always, regardless of auto-infer setting)
     if (currentSnapshotId) {
       await triggerExtraction(currentSnapshotId);
     }
@@ -198,10 +198,10 @@ function saveConfig() {
 function updateUI() {
   backendUrlInput.value = config.backendUrl;
   patientMrnInput.value = config.patientMrn;
-  autoCaptureToggle.checked = config.autoCapture;
+  autoInferToggle.checked = config.autoInfer;
 
-  document.getElementById('auto-capture-status').textContent =
-    config.autoCapture ? 'On' : 'Off';
+  document.getElementById('auto-infer-status').textContent =
+    config.autoInfer ? 'On' : 'Off';
   document.getElementById('snapshot-count').textContent =
     config.snapshotCount;
 }
@@ -249,7 +249,7 @@ async function sendSnapshot(domData, sourceUrl) {
       metadata: {
         title: domData.title,
         timestamp: new Date().toISOString(),
-        captureMode: config.autoCapture ? 'auto' : 'manual',
+        captureMode: config.autoInfer ? 'auto' : 'manual',
         patientMrn: config.patientMrn || undefined,
         documentSize: domData.html.length,
         userAgent: navigator.userAgent
@@ -276,7 +276,7 @@ async function sendSnapshot(domData, sourceUrl) {
     updateUI();
 
     // Trigger AI extraction if configured
-    if (config.autoCapture) {
+    if (config.autoInfer) {
       await triggerExtraction(result.id);
     }
   } catch (error) {
@@ -433,11 +433,11 @@ function updatePipelineUI(pipelineStatus) {
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'AUTO_CAPTURE_COMPLETE') {
-    addLog('success', 'Auto-capture completed');
+  if (message.type === 'AUTO_INFER_COMPLETE') {
+    addLog('success', 'Auto-infer completed');
     config.snapshotCount++;
     updateUI();
-  } else if (message.type === 'AUTO_CAPTURE_ERROR') {
-    addLog('error', `Auto-capture failed: ${message.error}`);
+  } else if (message.type === 'AUTO_INFER_ERROR') {
+    addLog('error', `Auto-infer failed: ${message.error}`);
   }
 });

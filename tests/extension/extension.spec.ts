@@ -159,14 +159,14 @@ test.describe('Chrome Extension - The Miner', () => {
     await expect(mrnInput).toHaveValue('MRN-12345');
   });
 
-  test('should toggle auto-capture mode', async ({ page, extensionId }) => {
+  test('should toggle auto-infer mode', async ({ page, extensionId }) => {
     await openExtensionPopup(page, extensionId);
 
     // Check initial state
-    const toggle = page.locator('#auto-capture-toggle');
+    const toggle = page.locator('#auto-infer-toggle');
     await expect(toggle).not.toBeChecked();
 
-    const status = page.locator('#auto-capture-status');
+    const status = page.locator('#auto-infer-status');
     await expect(status).toContainText('Off');
 
     // Toggle on - click the visible slider instead of the hidden checkbox

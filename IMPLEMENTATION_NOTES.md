@@ -45,18 +45,18 @@ We deviated from the original plan to build a more practical patient management 
 
 - **Features**:
   - **Manual Capture**: Click-to-capture current page DOM snapshot
-  - **Auto-Capture Mode**: Automatic detection of page changes with MutationObserver
+  - **Auto-Infer Mode**: Automatic detection of page changes with MutationObserver
   - **Style Preservation**: Inlines computed CSS to maintain visual fidelity
   - **Large DOM Support**: Handles EHR pages up to 50MB+
   - **Backend Integration**: Real-time POST to `/api/snapshots` endpoint
   - **Patient Context**: Optional MRN association for captured snapshots
   - **Activity Logging**: Built-in activity log for debugging
-  - **Throttling**: Max 1 auto-capture per 5 seconds
+  - **Throttling**: Max 1 auto-infer per 5 seconds
 
 - **Architecture**:
   - Popup UI for user interaction and settings
   - Content script runs on all pages for DOM capture
-  - Background worker handles auto-capture and backend communication
+  - Background worker handles auto-infer and backend communication
   - Full serialization with XMLSerializer
   - Metadata collection (URL, title, size, viewport, etc.)
 
@@ -398,8 +398,8 @@ AI_WORKER_MAX_CONCURRENT=3
 ### Phase 2 Metrics
 - **Extension Files:** 6 (manifest, popup, content, background, icons)
 - **Lines of Code:** ~500 (JavaScript/HTML/CSS)
-- **Features:** Manual capture, auto-capture, backend integration, activity logging
-- **Auto-Capture Throttle:** 5 seconds
+- **Features:** Manual capture, auto-infer, backend integration, activity logging
+- **Auto-Infer Throttle:** 5 seconds
 - **Max Payload:** 50MB
 
 ### Phase 3 Metrics
