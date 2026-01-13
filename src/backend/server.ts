@@ -41,6 +41,19 @@ app.use(errorHandler);
 // Start server
 const start = async () => {
   try {
+    // CRITICAL: Validate AWS profile is set correctly for Bedrock access
+    const awsProfile = process.env.AWS_PROFILE;
+    if (!awsProfile || awsProfile !== 'ai-developer') {
+      console.error('❌ ERROR: AWS_PROFILE must be set to "ai-developer" for Bedrock access');
+      console.error('   Current profile:', awsProfile || '(not set)');
+      console.error('');
+      console.error('   Run: AWS_PROFILE=ai-developer pnpm dev');
+      console.error('   Or:  AWS_PROFILE=ai-developer pnpm start');
+      console.error('');
+      console.error('   See CLAUDE.md for more details.');
+      process.exit(1);
+    }
+
     await connectDB();
     app.listen(PORT, () => {
       console.log(`🚀 API running on port ${PORT}`);
