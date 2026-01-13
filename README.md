@@ -51,16 +51,23 @@ lemonade/
 │   ├── backend/                    # Express API & MongoDB
 │   │   ├── models/                 # Data models (Patient, EHRRecord, AITask, Snapshot)
 │   │   ├── routes/                 # REST API endpoints
-│   │   └── services/               # AI extraction workflow
+│   │   └── services/               # AI extraction workflow (Phase 3)
 │   ├── extension/                  # Chrome Extension - The Miner (Phase 2)
 │   │   ├── manifest.json          # Manifest V3
-│   │   ├── popup.{html,js}        # Extension UI
-│   │   ├── content.js             # Recursive DOM capture
+│   │   ├── popup.{html,js}        # Extension UI with E2E pipeline testing
+│   │   ├── content.js             # Recursive DOM capture + code execution
 │   │   └── background.js          # Service worker
+│   ├── forge/                      # Code Generation - The Forge (Phase 4)
+│   │   ├── index.ts               # Main orchestrator with retry loop
+│   │   ├── code-generator.ts      # Claude Bedrock code generation
+│   │   └── gauntlet.ts            # Playwright validation harness
+│   ├── runtime/                    # Browser-safe utilities
+│   │   └── ehr-utils.ts           # DOM query helpers (injected with extractors)
 │   └── frontend/                   # React UI (patient management)
 ├── tests/
 │   ├── backend/                    # Backend API tests (70 tests)
 │   ├── extension/                  # Extension E2E tests (14 tests)
+│   ├── forge/                      # Forge unit tests (7 tests)
 │   └── fixtures/                   # Test fixtures
 ├── docker-compose.yml             # MongoDB container
 └── package.json
@@ -81,6 +88,7 @@ lemonade/
 - Cross-origin iframe support via postMessage
 - Style preservation with computed CSS inlining
 - Manual and auto-capture modes
+- E2E pipeline testing UI with real-time status
 - **14 passing E2E tests with Playwright**
 
 ### ✅ Phase 3: The Oracle - AI Extraction (COMPLETE)
@@ -90,9 +98,14 @@ lemonade/
 - Nested content extraction from iframes and Shadow DOM
 - **Successfully extracts patient demographics** from complex EHR systems (Athena Health tested)
 
-### ⏸️ Phase 4: The Forge (NOT IMPLEMENTED)
-- Using direct AI extraction instead of code generation
-- Skipped for simpler architecture
+### ✅ Phase 4: The Forge - Code Generation & Validation (COMPLETE)
+- AI-powered JavaScript extractor generation using Claude Bedrock
+- Playwright-based validation harness (The Gauntlet)
+- Retry loop with error feedback (up to 3 attempts)
+- Performance-optimized prompts (efficient DOM queries)
+- Name parsing best practices (handles complex names)
+- E2E pipeline testing UI in Chrome Extension
+- Real-time status updates and code execution
 
 ## Key Features
 
@@ -110,10 +123,12 @@ lemonade/
 - **Verification**: Multi-stage analysis with confidence scoring
 
 ### Production-Ready
-- **84 passing tests**: 70 backend + 14 extension E2E tests
-- **Retry logic**: Automatic retry with exponential backoff
+- **91 passing tests**: 70 backend + 14 extension + 7 forge tests
+- **Retry logic**: Automatic retry with exponential backoff (Oracle + Forge)
+- **Validation**: Playwright-based code validation (The Gauntlet)
 - **Logging**: Comprehensive logging across all pipeline stages
 - **Monitoring**: Worker status API and health checks
+- **Performance**: Optimized DOM queries (< 100ms extraction time)
 
 ## Usage
 
@@ -132,7 +147,13 @@ lemonade/
    - Click "📸 Capture Current Page"
    - Snapshot automatically queued for AI extraction
 
-3. **Enable Auto-Capture:**
+3. **Run E2E Pipeline:**
+   - Click "🚀 Run E2E Pipeline" in extension popup
+   - Watch real-time status: Capture → Oracle → Forge
+   - View performance metrics for each stage
+   - Test generated extractor code with "▶️ Run Code"
+
+4. **Enable Auto-Capture:**
    - Toggle "Auto-Capture Mode" in extension popup
    - Extension automatically captures page changes
    - Throttled to max 1 capture per 5 seconds
@@ -174,7 +195,8 @@ pnpm playwright test -g "should capture"  # Extension capture tests
 ### Test Coverage
 - **Backend**: 70 tests covering API, models, and services
 - **Extension**: 14 E2E tests covering capture, UI, and integration
-- **Success Rate**: 100% passing
+- **Forge**: 7 tests covering code generation, validation, and retry logic
+- **Total**: 91 tests with 100% pass rate
 
 ## Real-World Testing
 
@@ -223,12 +245,12 @@ pnpm playwright test -g "should capture"  # Extension capture tests
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────┐
-│        Extraction Workflow (5 stages)                    │
+│     Extraction Workflow (Phase 3: Oracle)                │
 │  1. Load snapshot from MongoDB                          │
 │  2. Extract patient data with Claude                    │
 │  3. Analyze document type & content                     │
 │  4. Verify extraction accuracy                          │
-│  5. Save results to database                            │
+│  5. Save results (Status: ANNOTATED)                    │
 └─────────────────────┬───────────────────────────────────┘
                       │
                       ▼
@@ -238,7 +260,20 @@ pnpm playwright test -g "should capture"  # Extension capture tests
 │  • Patient demographics parsing                         │
 │  • Clinical data extraction                             │
 │  • Confidence scoring                                   │
-└─────────────────────────────────────────────────────────┘
+└─────────────────────┬───────────────────────────────────┘
+                      │ Ground Truth Data
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│           The Forge (Phase 4: Code Generation)           │
+│  1. Generate JavaScript extractor (Claude Bedrock)      │
+│  2. Validate with Gauntlet (Playwright)                 │
+│  3. Retry with error feedback (3 attempts)              │
+│  4. Save verified code (Status: VERIFIED)               │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+         Reusable JavaScript Extractor
+         (Fast, deterministic, no AI calls)
 ```
 
 ## Documentation
@@ -246,7 +281,9 @@ pnpm playwright test -g "should capture"  # Extension capture tests
 - [spec.md](spec.md) - Original project specification
 - [plan.md](plan.md) - Detailed implementation plan
 - [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md) - Development history and deviations
+- [CODE_REVIEW.md](CODE_REVIEW.md) - Code quality review and refactoring plan
 - [src/extension/README.md](src/extension/README.md) - Chrome Extension documentation
+- [src/forge/README.md](src/forge/README.md) - Forge code generation documentation
 - [tests/extension/README.md](tests/extension/README.md) - Extension testing guide
 
 ## Environment Variables
@@ -264,10 +301,14 @@ PORT=3000
 # AWS_PROFILE=ai-developer is automatically set in dev/start scripts
 AWS_REGION=us-east-1
 
-# Worker
+# Worker (Phase 3: Oracle)
 AI_WORKER_ENABLED=true
 AI_WORKER_POLL_INTERVAL=5000
 AI_WORKER_MAX_CONCURRENT=3
+
+# Forge (Phase 4: Code Generation)
+FORGE_POLL_INTERVAL=10000
+FORGE_MAX_RETRIES=3
 ```
 
 **Note:** The `pnpm dev` and `pnpm start` commands automatically use the `ai-developer` AWS profile. Ensure this profile is configured in your AWS CLI (`~/.aws/config` and `~/.aws/credentials`).
@@ -278,17 +319,18 @@ AI_WORKER_MAX_CONCURRENT=3
 # Start development server with hot reload
 pnpm dev
 
+# Start individual services
+pnpm dev:backend       # Backend API server
+pnpm dev:forge         # Forge code generation service
+
 # Build for production
 pnpm build
 
-# Run backend tests
-pnpm test
-
-# Run extension tests
-pnpm test:extension
-
-# Run tests in watch mode
-pnpm test:watch
+# Run tests
+pnpm test              # Backend tests (70 tests)
+pnpm test:extension    # Extension E2E tests (14 tests)
+pnpm test:forge        # Forge unit tests (7 tests)
+pnpm test:watch        # Watch mode
 
 # Docker commands
 pnpm docker:up         # Start MongoDB
