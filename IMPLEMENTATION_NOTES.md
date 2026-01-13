@@ -79,7 +79,8 @@ We deviated from the original plan to build a more practical patient management 
 
 ### What We Built (Previously labeled as "Phase 2")
 - **AI Service** (`src/backend/services/aiService.ts`):
-  - Google Gemini Pro integration via LangChain
+  - AWS Bedrock with Claude 3.5 Sonnet integration via LangChain
+  - Configurable model ID for production (Claude Sonnet 4.5 when available)
   - 4 specialized functions: extract, summarize, analyze, verify
   - Robust JSON parsing and error handling
 
@@ -109,7 +110,7 @@ We deviated from the original plan to build a more practical patient management 
 - ✅ Verification and confidence scoring
 
 **Commits:**
-- `90c34aa` - feat: Phase 2 - AI Integration with LangChain & Gemini
+- `90c34aa` - feat: Phase 2 - AI Integration with LangChain & Claude (originally Gemini)
 - `21fd196` - chore: Add .pnpm-store to .gitignore
 
 ---
@@ -121,7 +122,7 @@ We deviated from the original plan to build a more practical patient management 
 - Runtime library (`EHR_UTILS`) with shadow DOM helpers
 - Playwright validation harness ("The Gauntlet")
 - Self-correction loop with retry on failure
-- Code generation with error feedback to Gemini
+- Code generation with error feedback to Claude
 
 ### Why We Skipped
 - Our direct LangChain approach extracts data without code generation
@@ -176,7 +177,7 @@ We deviated from the original plan to build a more practical patient management 
 └─────────────────────┬───────────────────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────────────────┐
-│         AI Service (Google Gemini Pro)                   │
+│    AI Service (AWS Bedrock - Claude 3.5 Sonnet)         │
 │  • LangChain integration                                │
 │  • Extract, Summarize, Analyze, Verify                 │
 └─────────────────────────────────────────────────────────┘
@@ -257,7 +258,7 @@ Build frontend dashboard to visualize the end-to-end flow: Extension → Snapsho
 - **Oracle Improvements** (`aiService.ts`):
   - `extractNestedContent()` - Extracts content from `data-iframe-content` and `data-shadow-root` attributes
   - Decodes HTML entities (`&amp;`, `&lt;`, `&gt;`, etc.)
-  - Increased context sent to Gemini from 50K to 500K characters
+  - Increased context sent to Claude from 50K to 500K characters
   - Prioritizes end of HTML where nested content is stored
   - Successfully extracts patient demographics from deeply nested structures
 
@@ -315,8 +316,9 @@ TEST_MONGODB_URI=mongodb://mongodb:27017/lemonade_test
 # API
 PORT=3000
 
-# AI
-GOOGLE_API_KEY=your_api_key_here
+# AWS Bedrock
+# AWS_PROFILE=ai-developer is set automatically in package.json scripts
+AWS_REGION=us-east-1
 
 # Worker
 AI_WORKER_ENABLED=true
@@ -344,7 +346,7 @@ AI_WORKER_MAX_CONCURRENT=3
 ## 🔗 Key Files
 
 ### Backend Services
-- `src/backend/services/aiService.ts` - Gemini AI integration
+- `src/backend/services/aiService.ts` - AWS Bedrock Claude integration
 - `src/backend/services/extractionWorkflow.ts` - Sequential extraction pipeline
 - `src/backend/services/taskWorker.ts` - Background task processor
 
@@ -401,7 +403,7 @@ AI_WORKER_MAX_CONCURRENT=3
 - **Max Payload:** 50MB
 
 ### Phase 3 Metrics
-- **Dependencies Added:** 35 (LangChain, Gemini)
+- **Dependencies Added:** AWS Bedrock via LangChain
 - **AI Functions:** 4 (extract, summarize, analyze, verify)
 - **Workflow Stages:** 5 (sequential pipeline)
 - **Worker Features:** Polling, concurrency, retry

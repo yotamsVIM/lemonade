@@ -25,7 +25,8 @@ Automated AI-EHR data extraction pipeline using "Database as State" architecture
 3. **Configure environment:**
    ```bash
    cp .env.example .env
-   # Edit .env and add your GOOGLE_API_KEY for Gemini
+   # Edit .env if you need to override AWS region (defaults to us-east-1)
+   # AWS profile ai-developer will be used automatically
    ```
 
 4. **Run development server:**
@@ -83,7 +84,7 @@ lemonade/
 - **14 passing E2E tests with Playwright**
 
 ### ✅ Phase 3: The Oracle - AI Extraction (COMPLETE)
-- Google Gemini 2.5 Flash integration
+- AWS Bedrock with Claude 3.5 Sonnet integration (configurable for Claude 4.5 in prod)
 - Extraction workflow (Load → Extract → Analyze → Verify → Save)
 - Background task worker with retry logic
 - Nested content extraction from iframes and Shadow DOM
@@ -224,7 +225,7 @@ pnpm playwright test -g "should capture"  # Extension capture tests
 ┌─────────────────────────────────────────────────────────┐
 │        Extraction Workflow (5 stages)                    │
 │  1. Load snapshot from MongoDB                          │
-│  2. Extract patient data with Gemini                    │
+│  2. Extract patient data with Claude                    │
 │  3. Analyze document type & content                     │
 │  4. Verify extraction accuracy                          │
 │  5. Save results to database                            │
@@ -232,7 +233,7 @@ pnpm playwright test -g "should capture"  # Extension capture tests
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────┐
-│         AI Service (Google Gemini 2.5 Flash)             │
+│      AI Service (AWS Bedrock - Claude 3.5 Sonnet)       │
 │  • Nested content extraction (iframes + Shadow DOM)     │
 │  • Patient demographics parsing                         │
 │  • Clinical data extraction                             │
@@ -259,14 +260,17 @@ TEST_MONGODB_URI=mongodb://localhost:27017/lemonade_test
 # API
 PORT=3000
 
-# AI (required for extraction)
-GOOGLE_API_KEY=your_gemini_api_key_here
+# AWS Bedrock (required for extraction)
+# AWS_PROFILE=ai-developer is automatically set in dev/start scripts
+AWS_REGION=us-east-1
 
 # Worker
 AI_WORKER_ENABLED=true
 AI_WORKER_POLL_INTERVAL=5000
 AI_WORKER_MAX_CONCURRENT=3
 ```
+
+**Note:** The `pnpm dev` and `pnpm start` commands automatically use the `ai-developer` AWS profile. Ensure this profile is configured in your AWS CLI (`~/.aws/config` and `~/.aws/credentials`).
 
 ## Development Commands
 

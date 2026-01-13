@@ -61,7 +61,10 @@ export class ExtractionWorkflow {
       console.log('[Workflow] Extracting data from HTML');
 
       const fields = [
-        'patientName',
+        'firstName',
+        'lastName',
+        'middleName',
+        'fullName',
         'dateOfBirth',
         'visitDate',
         'chiefComplaint',
@@ -234,11 +237,12 @@ export class ExtractionWorkflow {
       state = await this.extractData(state);
       if (state.errors.length > 0) return state;
 
-      state = await this.analyzeData(state);
-      if (state.errors.length > 0) return state;
+      // TEMPORARY: Skip analysis and verification to save API quota
+      // state = await this.analyzeData(state);
+      // if (state.errors.length > 0) return state;
 
-      state = await this.verifyData(state);
-      if (state.errors.length > 0) return state;
+      // state = await this.verifyData(state);
+      // if (state.errors.length > 0) return state;
 
       state = await this.saveResults(state);
 

@@ -1,4 +1,4 @@
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { ChatBedrockConverse } from '@langchain/aws';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 
 export interface ExtractionResult {
@@ -9,16 +9,19 @@ export interface ExtractionResult {
 }
 
 export class AIService {
-  private model: ChatGoogleGenerativeAI;
+  private model: ChatBedrockConverse;
 
   constructor() {
-    const apiKey = process.env.GOOGLE_API_KEY || 'dummy_key';
+    const awsRegion = process.env.AWS_REGION || 'us-east-1';
+    // Default to Claude 3.5 Sonnet (on-demand) for dev, override in prod with BEDROCK_MODEL_ID
+    const modelId = process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-sonnet-20240620-v1:0';
 
-    this.model = new ChatGoogleGenerativeAI({
-      model: 'gemini-2.5-flash',
-      apiKey,
+    // AWS SDK will automatically use credentials from AWS_PROFILE environment variable
+    this.model = new ChatBedrockConverse({
+      model: modelId,
+      region: awsRegion,
       temperature: 0.1, // Low temperature for consistent extraction
-      maxOutputTokens: 2048
+      maxTokens: 4096
     });
   }
 
@@ -62,16 +65,25 @@ export class AIService {
    */
   async extractFromHTML(html: string, fields: string[]): Promise<ExtractionResult> {
     try {
-      const systemPrompt = `You are an expert medical data extraction system.
-Extract structured data from EHR HTML snapshots.
-Focus on accuracy and extract only what is clearly present in the HTML.
+      const systemPrompt = `You are an expert medical data extraction system specializing in EHR data.
+Extract structured data from EHR HTML snapshots with high accuracy.
 The HTML may contain nested iframe content in data-iframe-content attributes and Shadow DOM in data-shadow-root attributes.
-Return data in JSON format.`;
+
+IMPORTANT EXTRACTION RULES:
+- Patient names often appear in "LastName, FirstName MiddleName" format (e.g., "Marsh, Lola TEST")
+- When extracting name fields:
+  * firstName: Extract the first name after the comma
+  * lastName: Extract the name before the comma
+  * middleName: Extract any additional names after the first name (may be full name or initials)
+  * fullName: Keep the complete name string exactly as it appears
+- Dates may appear in various formats (MM/DD/YYYY, Month DD, YYYY, etc.)
+- Extract only data that is clearly present - use null for missing fields
+- Return valid JSON format`;
 
       // Extract nested content from iframes and shadow DOM
       const enrichedHtml = this.extractNestedContent(html);
 
-      // Gemini 2.5 Flash supports up to 1M tokens (~750K characters)
+      // Claude Sonnet 4.5 supports up to 200K tokens (~150K characters)
       // Prioritize the end of the HTML where nested content is stored
       const maxChars = 500000;
       let htmlToSend = enrichedHtml;
@@ -90,7 +102,7 @@ HTML Content (${enrichedHtml.length} bytes, nested content extracted):
 ${htmlToSend}
 
 Return a JSON object with the extracted data. Use null for fields not found.
-Format: { "field_name": "extracted_value", ... }`;
+Example format: { "firstName": "John", "lastName": "Doe", "middleName": "M", "fullName": "Doe, John M", "dateOfBirth": "01/15/1980" }`;
 
       const messages = [
         new SystemMessage(systemPrompt),
