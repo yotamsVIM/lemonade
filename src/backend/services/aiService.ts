@@ -8,6 +8,16 @@ export interface ExtractionResult {
   confidence?: number;
 }
 
+interface HTMLTruncationStrategy {
+  type: 'end' | 'both';
+  maxChars: number;
+  startChars?: number; // For 'both' strategy
+}
+
+/**
+ * AI Service for EHR data extraction using AWS Bedrock Claude models
+ * Provides common methods for HTML processing, prompt invocation, and response parsing
+ */
 export class AIService {
   private model: ChatBedrockConverse;
 
@@ -27,6 +37,7 @@ export class AIService {
 
   /**
    * Extract nested iframe and shadow DOM content from HTML
+   * Extracts and decodes content from data-iframe-content and data-shadow-root attributes
    */
   private extractNestedContent(html: string): string {
     const parts: string[] = [];
@@ -61,7 +72,62 @@ export class AIService {
   }
 
   /**
+   * Truncate HTML to fit within AI context window
+   * @param html - HTML content to truncate
+   * @param strategy - Truncation strategy (end: keep end only, both: keep start + end)
+   */
+  private truncateHTML(html: string, strategy: HTMLTruncationStrategy): string {
+    if (html.length <= strategy.maxChars) {
+      return html;
+    }
+
+    if (strategy.type === 'end') {
+      // Keep only the end (where nested content is stored)
+      return html.substring(html.length - strategy.maxChars);
+    } else if (strategy.type === 'both' && strategy.startChars) {
+      // Keep start (metadata) + end (nested content)
+      const endChars = strategy.maxChars - strategy.startChars;
+      const start = html.substring(0, strategy.startChars);
+      const end = html.substring(html.length - endChars);
+      return start + '\n\n<!-- [Middle section truncated] -->\n\n' + end;
+    }
+
+    return html;
+  }
+
+  /**
+   * Parse JSON from AI response content
+   * Extracts JSON object from text that may contain additional commentary
+   */
+  private parseJSONResponse(content: string): any {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('Failed to parse JSON from AI response');
+    }
+    return JSON.parse(jsonMatch[0]);
+  }
+
+  /**
+   * Invoke Claude AI model with system and user prompts
+   * Common method for all AI extraction operations
+   */
+  private async invokeAI(
+    systemPrompt: string,
+    userPrompt: string
+  ): Promise<string> {
+    const messages = [
+      new SystemMessage(systemPrompt),
+      new HumanMessage(userPrompt)
+    ];
+
+    const response = await this.model.invoke(messages);
+    return response.content as string;
+  }
+
+  /**
    * Extract structured data from HTML snapshot
+   * @param html - Raw HTML content from EHR page
+   * @param fields - Array of field names to extract
    */
   async extractFromHTML(html: string, fields: string[]): Promise<ExtractionResult> {
     try {
@@ -83,17 +149,12 @@ IMPORTANT EXTRACTION RULES:
       // Extract nested content from iframes and shadow DOM
       const enrichedHtml = this.extractNestedContent(html);
 
-      // Claude Sonnet 4.5 supports up to 200K tokens (~150K characters)
-      // Prioritize the end of the HTML where nested content is stored
-      const maxChars = 500000;
-      let htmlToSend = enrichedHtml;
-
-      if (enrichedHtml.length > maxChars) {
-        // Take last 400K chars (where nested content is) + first 100K chars (metadata)
-        const start = enrichedHtml.substring(0, 100000);
-        const end = enrichedHtml.substring(enrichedHtml.length - 400000);
-        htmlToSend = start + '\n\n<!-- [Middle section truncated] -->\n\n' + end;
-      }
+      // Truncate HTML to fit AI context window
+      const htmlToSend = this.truncateHTML(enrichedHtml, {
+        type: 'both',
+        maxChars: 500000,
+        startChars: 100000
+      });
 
       const userPrompt = `Extract the following fields from this EHR HTML:
 Fields to extract: ${fields.join(', ')}
@@ -104,24 +165,9 @@ ${htmlToSend}
 Return a JSON object with the extracted data. Use null for fields not found.
 Example format: { "firstName": "John", "lastName": "Doe", "middleName": "M", "fullName": "Doe, John M", "dateOfBirth": "01/15/1980" }`;
 
-      const messages = [
-        new SystemMessage(systemPrompt),
-        new HumanMessage(userPrompt)
-      ];
-
-      const response = await this.model.invoke(messages);
-      const content = response.content as string;
-
-      // Parse JSON response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return {
-          success: false,
-          error: 'Failed to parse JSON from AI response'
-        };
-      }
-
-      const extractedData = JSON.parse(jsonMatch[0]);
+      // Invoke AI and parse response
+      const content = await this.invokeAI(systemPrompt, userPrompt);
+      const extractedData = this.parseJSONResponse(content);
 
       return {
         success: true,
@@ -138,6 +184,7 @@ Example format: { "firstName": "John", "lastName": "Doe", "middleName": "M", "fu
 
   /**
    * Summarize patient records
+   * @param records - Array of patient medical records
    */
   async summarizeRecords(records: any[]): Promise<ExtractionResult> {
     try {
@@ -157,23 +204,9 @@ Provide a structured summary with:
 
 Return as JSON.`;
 
-      const messages = [
-        new SystemMessage(systemPrompt),
-        new HumanMessage(userPrompt)
-      ];
-
-      const response = await this.model.invoke(messages);
-      const content = response.content as string;
-
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return {
-          success: false,
-          error: 'Failed to parse summary from AI response'
-        };
-      }
-
-      const summary = JSON.parse(jsonMatch[0]);
+      // Invoke AI and parse response
+      const content = await this.invokeAI(systemPrompt, userPrompt);
+      const summary = this.parseJSONResponse(content);
 
       return {
         success: true,
@@ -190,23 +223,21 @@ Return as JSON.`;
 
   /**
    * Analyze and classify EHR content
+   * @param content - HTML content to analyze
    */
   async analyzeContent(content: string): Promise<ExtractionResult> {
     try {
       const systemPrompt = `You are a medical document classifier.
 Analyze EHR content and identify the document type, key entities, and medical concepts.`;
 
-      // Extract nested content for analysis too
+      // Extract nested content for analysis
       const enrichedContent = this.extractNestedContent(content);
 
-      // Use more context for analysis
-      const maxChars = 100000;
-      let contentToAnalyze = enrichedContent;
-
-      if (enrichedContent.length > maxChars) {
-        // Prioritize end where nested content is stored
-        contentToAnalyze = enrichedContent.substring(Math.max(0, enrichedContent.length - maxChars));
-      }
+      // Truncate to fit context window (prioritize end)
+      const contentToAnalyze = this.truncateHTML(enrichedContent, {
+        type: 'end',
+        maxChars: 100000
+      });
 
       const userPrompt = `Analyze this EHR content:
 
@@ -222,23 +253,9 @@ Return JSON with:
   "keyFindings": ["array of key findings"]
 }`;
 
-      const messages = [
-        new SystemMessage(systemPrompt),
-        new HumanMessage(userPrompt)
-      ];
-
-      const response = await this.model.invoke(messages);
-      const responseContent = response.content as string;
-
-      const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return {
-          success: false,
-          error: 'Failed to parse analysis from AI response'
-        };
-      }
-
-      const analysis = JSON.parse(jsonMatch[0]);
+      // Invoke AI and parse response
+      const responseContent = await this.invokeAI(systemPrompt, userPrompt);
+      const analysis = this.parseJSONResponse(responseContent);
 
       return {
         success: true,
@@ -255,6 +272,8 @@ Return JSON with:
 
   /**
    * Verify extracted data accuracy
+   * @param original - Original HTML content
+   * @param extracted - Extracted data to verify
    */
   async verifyExtraction(original: string, extracted: any): Promise<ExtractionResult> {
     try {
@@ -266,14 +285,11 @@ Be lenient - if the extracted data appears in the HTML at all, mark it as accura
       // Extract nested content for verification
       const enrichedOriginal = this.extractNestedContent(original);
 
-      // Use more context for verification - include area where data was found
-      const maxChars = 150000;
-      let htmlToVerify = enrichedOriginal;
-
-      if (enrichedOriginal.length > maxChars) {
-        // Take last 150K chars where nested content is stored
-        htmlToVerify = enrichedOriginal.substring(enrichedOriginal.length - maxChars);
-      }
+      // Truncate to fit context window (prioritize end)
+      const htmlToVerify = this.truncateHTML(enrichedOriginal, {
+        type: 'end',
+        maxChars: 150000
+      });
 
       const userPrompt = `Original HTML excerpt (nested content extracted):
 ${htmlToVerify}
@@ -289,23 +305,9 @@ Verify accuracy and return JSON:
   "corrections": { "field": "corrected_value" }
 }`;
 
-      const messages = [
-        new SystemMessage(systemPrompt),
-        new HumanMessage(userPrompt)
-      ];
-
-      const response = await this.model.invoke(messages);
-      const content = response.content as string;
-
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return {
-          success: false,
-          error: 'Failed to parse verification from AI response'
-        };
-      }
-
-      const verification = JSON.parse(jsonMatch[0]);
+      // Invoke AI and parse response
+      const content = await this.invokeAI(systemPrompt, userPrompt);
+      const verification = this.parseJSONResponse(content);
 
       return {
         success: true,
