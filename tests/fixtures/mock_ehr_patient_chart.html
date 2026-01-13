@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Chart - White-Test TOM</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: white;
+            margin: 0;
+        }
+        .section {
+            background-color: #f9f9f9;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            border: 1px solid #e0e0e0;
+        }
+        .section h2 {
+            color: #5b3a8f;
+            margin-top: 0;
+            border-bottom: 2px solid #5b3a8f;
+            padding-bottom: 8px;
+            font-size: 18px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        table th {
+            background-color: #e3f2fd;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+            border: 1px solid #ddd;
+        }
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        .field-row {
+            display: flex;
+            margin: 8px 0;
+        }
+        .field-label {
+            font-weight: bold;
+            width: 150px;
+            color: #555;
+        }
+        .field-value {
+            color: #000;
+        }
+        .alert-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .medication-item {
+            background-color: white;
+            padding: 10px;
+            margin: 8px 0;
+            border-left: 4px solid #2196F3;
+            border-radius: 3px;
+        }
+        .allergy-item {
+            background-color: white;
+            padding: 10px;
+            margin: 8px 0;
+            border-left: 4px solid #f44336;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="alert-box">
+        <strong>⚠️ Active Allergies:</strong> Penicillin (severe), Latex (moderate)
+    </div>
+
+    <div class="section">
+        <h2>Patient Demographics</h2>
+        <div class="field-row">
+            <div class="field-label">Patient Name:</div>
+            <div class="field-value">White-Test TOM</div>
+        </div>
+        <div class="field-row">
+            <div class="field-label">First Name Used:</div>
+            <div class="field-value">White-Test</div>
+        </div>
+        <div class="field-row">
+            <div class="field-label">Legal First Name:</div>
+            <div class="field-value">White-Test</div>
+        </div>
+        <div class="field-row">
+            <div class="field-label">Legal Last Name:</div>
+            <div class="field-value">Tom</div>
+        </div>
+        <div class="field-row">
+            <div class="field-label">Date of Birth:</div>
+            <div class="field-value">11-04-1986</div>
+        </div>
+        <div class="field-row">
+            <div class="field-label">Patient ID:</div>
+            <div class="field-value">#7637</div>
+        </div>
+        <div class="field-row">
+            <div class="field-label">Age:</div>
+            <div class="field-value">39yo</div>
+        </div>
+        <div class="field-row">
+            <div class="field-label">Gender:</div>
+            <div class="field-value">M</div>
+        </div>
+        <div class="field-row">
+            <div class="field-label">Enterprise ID:</div>
+            <div class="field-value">E#7637</div>
+        </div>
+        <div class="field-row">
+            <div class="field-label">Primary Physician:</div>
+            <div class="field-value">Dr. Sarah Johnson, MD</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Vital Signs</h2>
+        <p><em>Recorded: January 11, 2026 at 09:15 AM</em></p>
+        <table>
+            <tr>
+                <th>Vital</th>
+                <th>Value</th>
+                <th>Status</th>
+            </tr>
+            <tr>
+                <td>Blood Pressure</td>
+                <td><strong>135/88 mmHg</strong></td>
+                <td style="color: #ff9800;">Elevated</td>
+            </tr>
+            <tr>
+                <td>Heart Rate</td>
+                <td><strong>78 bpm</strong></td>
+                <td style="color: #4caf50;">Normal</td>
+            </tr>
+            <tr>
+                <td>Temperature</td>
+                <td><strong>98.6°F</strong></td>
+                <td style="color: #4caf50;">Normal</td>
+            </tr>
+            <tr>
+                <td>Respiratory Rate</td>
+                <td><strong>16 breaths/min</strong></td>
+                <td style="color: #4caf50;">Normal</td>
+            </tr>
+            <tr>
+                <td>Weight</td>
+                <td><strong>192 lbs</strong></td>
+                <td style="color: #ff9800;">Overweight</td>
+            </tr>
+            <tr>
+                <td>Height</td>
+                <td><strong>5'11"</strong></td>
+                <td>-</td>
+            </tr>
+            <tr>
+                <td>BMI</td>
+                <td><strong>26.8</strong></td>
+                <td style="color: #ff9800;">Overweight</td>
+            </tr>
+            <tr>
+                <td>O2 Saturation</td>
+                <td><strong>97%</strong></td>
+                <td style="color: #4caf50;">Normal</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Active Medications</h2>
+        <div class="medication-item">
+            <strong>Lisinopril 20mg</strong><br>
+            <em>Indication:</em> Hypertension<br>
+            <em>Dosage:</em> Once daily, oral<br>
+            <em>Prescribed:</em> 2024-03-15 by Dr. Sarah Johnson
+        </div>
+        <div class="medication-item">
+            <strong>Metformin 1000mg</strong><br>
+            <em>Indication:</em> Type 2 Diabetes Mellitus<br>
+            <em>Dosage:</em> Twice daily with meals, oral<br>
+            <em>Prescribed:</em> 2025-06-20 by Dr. Sarah Johnson
+        </div>
+        <div class="medication-item">
+            <strong>Atorvastatin 40mg</strong><br>
+            <em>Indication:</em> Hyperlipidemia<br>
+            <em>Dosage:</em> Once daily at bedtime, oral<br>
+            <em>Prescribed:</em> 2024-08-10 by Dr. Sarah Johnson
+        </div>
+        <div class="medication-item">
+            <strong>Aspirin 81mg</strong><br>
+            <em>Indication:</em> Cardiovascular prophylaxis<br>
+            <em>Dosage:</em> Once daily, oral<br>
+            <em>Prescribed:</em> 2024-03-15 by Dr. Sarah Johnson
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Allergies</h2>
+        <div class="allergy-item">
+            <strong>Penicillin</strong><br>
+            <em>Reaction:</em> Severe rash, hives, anaphylaxis risk<br>
+            <em>Severity:</em> High<br>
+            <em>Documented:</em> 1995-05-20
+        </div>
+        <div class="allergy-item">
+            <strong>Latex</strong><br>
+            <em>Reaction:</em> Contact dermatitis, skin irritation<br>
+            <em>Severity:</em> Moderate<br>
+            <em>Documented:</em> 2010-08-12
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Diagnosis</h2>
+        <div class="field-row">
+            <div class="field-label">Primary Diagnosis:</div>
+            <div class="field-value">Type 2 Diabetes Mellitus (E11.9)</div>
+        </div>
+        <div class="field-row">
+            <div class="field-label">Secondary Diagnoses:</div>
+            <div class="field-value">
+                • Essential Hypertension (I10)<br>
+                • Hyperlipidemia (E78.5)<br>
+                • Overweight (E66.3)
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Recent Lab Results</h2>
+        <p><em>Collection Date: 2026-01-05</em></p>
+        <table>
+            <tr>
+                <th>Test</th>
+                <th>Result</th>
+                <th>Reference Range</th>
+                <th>Status</th>
+            </tr>
+            <tr>
+                <td>Hemoglobin A1C</td>
+                <td><strong>7.4%</strong></td>
+                <td>&lt; 5.7%</td>
+                <td style="color: #f44336;">High</td>
+            </tr>
+            <tr>
+                <td>Fasting Glucose</td>
+                <td><strong>148 mg/dL</strong></td>
+                <td>70-100 mg/dL</td>
+                <td style="color: #f44336;">High</td>
+            </tr>
+            <tr>
+                <td>Total Cholesterol</td>
+                <td><strong>208 mg/dL</strong></td>
+                <td>&lt; 200 mg/dL</td>
+                <td style="color: #ff9800;">Borderline</td>
+            </tr>
+            <tr>
+                <td>LDL Cholesterol</td>
+                <td><strong>125 mg/dL</strong></td>
+                <td>&lt; 100 mg/dL</td>
+                <td style="color: #f44336;">High</td>
+            </tr>
+            <tr>
+                <td>HDL Cholesterol</td>
+                <td><strong>45 mg/dL</strong></td>
+                <td>&gt; 40 mg/dL</td>
+                <td style="color: #4caf50;">Normal</td>
+            </tr>
+            <tr>
+                <td>Triglycerides</td>
+                <td><strong>190 mg/dL</strong></td>
+                <td>&lt; 150 mg/dL</td>
+                <td style="color: #f44336;">High</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Clinical Notes</h2>
+        <p><strong>Visit Date:</strong> January 11, 2026</p>
+        <p><strong>Chief Complaint:</strong> Follow-up for diabetes management and hypertension</p>
+
+        <p><strong>Assessment:</strong></p>
+        <p>39-year-old male with Type 2 Diabetes Mellitus and Essential Hypertension presents for routine follow-up.
+        Recent A1C shows suboptimal glycemic control at 7.4%, up from 7.1% three months ago. Blood pressure readings
+        remain elevated despite current medication regimen. Patient reports good medication compliance but admits
+        difficulty with dietary modifications and exercise routine.</p>
+
+        <p><strong>Plan:</strong></p>
+        <ul>
+            <li>Increase Metformin to 1000mg twice daily (from 850mg)</li>
+            <li>Increase Lisinopril to 20mg daily (from 10mg)</li>
+            <li>Continue Atorvastatin 40mg at bedtime</li>
+            <li>Continue Aspirin 81mg daily</li>
+            <li>Refer to endocrinology for diabetes management consultation</li>
+            <li>Refer to nutritionist for medical nutrition therapy</li>
+            <li>Discussed importance of weight loss target (10% body weight)</li>
+            <li>Recheck A1C and lipid panel in 3 months</li>
+            <li>Home blood pressure monitoring recommended</li>
+        </ul>
+
+        <p><strong>Follow-up:</strong> Scheduled appointment in 3 months for diabetes and hypertension management review</p>
+
+        <p style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <em>Electronically signed by Dr. Sarah Johnson, MD on January 11, 2026 at 10:30 AM</em>
+        </p>
+    </div>
+
+    <script>
+        console.log('[Mock Patient Chart] Loaded for patient: White-Test TOM (#7637)');
+        console.log('[Mock Patient Chart] This content is inside an iframe');
+    </script>
+</body>
+</html>
