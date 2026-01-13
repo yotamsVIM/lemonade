@@ -77,45 +77,60 @@ export class TaskWorker {
    */
   private async processTask(taskId: string): Promise<void> {
     this.activeTaskCount++;
+    console.log(`[TaskWorker] ========================================`);
+    console.log(`[TaskWorker] Starting task processing`);
+    console.log(`[TaskWorker] Task ID: ${taskId.substring(0, 8)}...`);
+    console.log(`[TaskWorker] Active tasks: ${this.activeTaskCount}/${this.maxConcurrent}`);
 
     try {
       const task = await AITask.findById(taskId);
       if (!task) {
-        console.error(`[TaskWorker] Task ${taskId} not found`);
+        console.error(`[TaskWorker] ✗ Task not found: ${taskId}`);
         return;
       }
 
-      console.log(`[TaskWorker] Processing task ${taskId} (${task.taskType})`);
+      console.log(`[TaskWorker] Task type: ${task.taskType}`);
+      console.log(`[TaskWorker] Target type: ${task.targetType}`);
+      console.log(`[TaskWorker] Target ID: ${task.targetId}`);
+      console.log(`[TaskWorker] Priority: ${task.priority}`);
+      console.log(`[TaskWorker] Retry count: ${task.retryCount}/${task.maxRetries}`);
 
       // Route to appropriate handler based on task type
       switch (task.taskType) {
         case 'EXTRACT':
+          console.log(`[TaskWorker] Routing to EXTRACT handler...`);
           await this.handleExtractTask(task);
           break;
         case 'SUMMARIZE':
+          console.log(`[TaskWorker] Routing to SUMMARIZE handler...`);
           await this.handleSummarizeTask(task);
           break;
         case 'ANALYZE':
+          console.log(`[TaskWorker] Routing to ANALYZE handler...`);
           await this.handleAnalyzeTask(task);
           break;
         case 'VERIFY':
+          console.log(`[TaskWorker] Routing to VERIFY handler...`);
           await this.handleVerifyTask(task);
           break;
         case 'CLASSIFY':
+          console.log(`[TaskWorker] Routing to CLASSIFY handler...`);
           await this.handleClassifyTask(task);
           break;
         default:
           throw new Error(`Unknown task type: ${task.taskType}`);
       }
 
-      console.log(`[TaskWorker] Task ${taskId} completed successfully`);
+      console.log(`[TaskWorker] ✓ Task completed successfully`);
     } catch (error) {
-      console.error(`[TaskWorker] Task ${taskId} failed:`, error);
+      console.error(`[TaskWorker] ✗ Task processing failed`);
+      console.error(`[TaskWorker] Error:`, error);
 
       // Update task with error
       const task = await AITask.findById(taskId);
       if (task && task.retryCount < task.maxRetries) {
         // Retry the task
+        console.log(`[TaskWorker] Retrying task (${task.retryCount + 1}/${task.maxRetries})...`);
         await AITask.findByIdAndUpdate(taskId, {
           status: 'QUEUED',
           $inc: { retryCount: 1 },
@@ -129,6 +144,7 @@ export class TaskWorker {
         });
       } else {
         // Max retries reached
+        console.error(`[TaskWorker] Max retries reached, marking task as FAILED`);
         await AITask.findByIdAndUpdate(taskId, {
           status: 'FAILED',
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -144,6 +160,8 @@ export class TaskWorker {
       }
     } finally {
       this.activeTaskCount--;
+      console.log(`[TaskWorker] Task processing complete. Active: ${this.activeTaskCount}/${this.maxConcurrent}`);
+      console.log(`[TaskWorker] ========================================`);
     }
   }
 

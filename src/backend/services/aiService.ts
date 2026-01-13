@@ -26,6 +26,11 @@ export class AIService {
     // Default to Claude 3.5 Sonnet (on-demand) for dev, override in prod with BEDROCK_MODEL_ID
     const modelId = process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-sonnet-20240620-v1:0';
 
+    console.log('[AIService] Initializing AI Service');
+    console.log(`[AIService] AWS Region: ${awsRegion}`);
+    console.log(`[AIService] Bedrock Model: ${modelId}`);
+    console.log(`[AIService] AWS Profile: ${process.env.AWS_PROFILE || '(default)'}`);
+
     // AWS SDK will automatically use credentials from AWS_PROFILE environment variable
     this.model = new ChatBedrockConverse({
       model: modelId,
@@ -33,6 +38,8 @@ export class AIService {
       temperature: 0.1, // Low temperature for consistent extraction
       maxTokens: 4096
     });
+
+    console.log('[AIService] AI Service initialized successfully');
   }
 
   /**
@@ -115,13 +122,40 @@ export class AIService {
     systemPrompt: string,
     userPrompt: string
   ): Promise<string> {
-    const messages = [
-      new SystemMessage(systemPrompt),
-      new HumanMessage(userPrompt)
-    ];
+    const startTime = Date.now();
 
-    const response = await this.model.invoke(messages);
-    return response.content as string;
+    console.log('[AIService] Invoking Bedrock AI model');
+    console.log(`[AIService] System prompt length: ${systemPrompt.length} chars`);
+    console.log(`[AIService] User prompt length: ${userPrompt.length} chars`);
+
+    try {
+      const messages = [
+        new SystemMessage(systemPrompt),
+        new HumanMessage(userPrompt)
+      ];
+
+      console.log('[AIService] Sending request to AWS Bedrock...');
+      const response = await this.model.invoke(messages);
+
+      const duration = Date.now() - startTime;
+      const responseContent = response.content as string;
+
+      console.log(`[AIService] ✓ Bedrock response received in ${duration}ms`);
+      console.log(`[AIService] Response length: ${responseContent.length} chars`);
+
+      return responseContent;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      console.error(`[AIService] ✗ Bedrock invocation failed after ${duration}ms`);
+      console.error('[AIService] Error details:', error);
+
+      if (error instanceof Error) {
+        console.error(`[AIService] Error message: ${error.message}`);
+        console.error(`[AIService] Error stack:`, error.stack);
+      }
+
+      throw error;
+    }
   }
 
   /**
@@ -130,6 +164,10 @@ export class AIService {
    * @param fields - Array of field names to extract
    */
   async extractFromHTML(html: string, fields: string[]): Promise<ExtractionResult> {
+    console.log('[AIService] Starting HTML extraction');
+    console.log(`[AIService] Input HTML size: ${html.length} bytes`);
+    console.log(`[AIService] Fields to extract: ${fields.join(', ')}`);
+
     try {
       const systemPrompt = `You are an expert medical data extraction system specializing in EHR data.
 Extract structured data from EHR HTML snapshots with high accuracy.
@@ -147,14 +185,18 @@ IMPORTANT EXTRACTION RULES:
 - Return valid JSON format`;
 
       // Extract nested content from iframes and shadow DOM
+      console.log('[AIService] Extracting nested iframe/shadow DOM content...');
       const enrichedHtml = this.extractNestedContent(html);
+      console.log(`[AIService] Enriched HTML size: ${enrichedHtml.length} bytes`);
 
       // Truncate HTML to fit AI context window
+      console.log('[AIService] Truncating HTML to fit context window...');
       const htmlToSend = this.truncateHTML(enrichedHtml, {
         type: 'both',
         maxChars: 500000,
         startChars: 100000
       });
+      console.log(`[AIService] Final HTML size for AI: ${htmlToSend.length} bytes`);
 
       const userPrompt = `Extract the following fields from this EHR HTML:
 Fields to extract: ${fields.join(', ')}
@@ -167,7 +209,11 @@ Example format: { "firstName": "John", "lastName": "Doe", "middleName": "M", "fu
 
       // Invoke AI and parse response
       const content = await this.invokeAI(systemPrompt, userPrompt);
+
+      console.log('[AIService] Parsing JSON response...');
       const extractedData = this.parseJSONResponse(content);
+      console.log('[AIService] ✓ Extraction completed successfully');
+      console.log('[AIService] Extracted fields:', Object.keys(extractedData).join(', '));
 
       return {
         success: true,
@@ -175,6 +221,9 @@ Example format: { "firstName": "John", "lastName": "Doe", "middleName": "M", "fu
         confidence: 0.85 // Could implement confidence scoring
       };
     } catch (error) {
+      console.error('[AIService] ✗ Extraction failed');
+      console.error('[AIService] Error:', error);
+
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred'

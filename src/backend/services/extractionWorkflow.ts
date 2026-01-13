@@ -28,10 +28,12 @@ export class ExtractionWorkflow {
    */
   private async loadSnapshot(state: ExtractionState): Promise<ExtractionState> {
     try {
-      console.log(`[Workflow] Loading snapshot: ${state.snapshotId}`);
+      console.log(`[Workflow] ===== STEP 1: Load Snapshot =====`);
+      console.log(`[Workflow] Snapshot ID: ${state.snapshotId}`);
 
       const snapshot = await Snapshot.findById(state.snapshotId);
       if (!snapshot) {
+        console.error(`[Workflow] ✗ Snapshot not found: ${state.snapshotId}`);
         return {
           ...state,
           step: 'load',
@@ -39,12 +41,17 @@ export class ExtractionWorkflow {
         };
       }
 
+      console.log(`[Workflow] ✓ Snapshot loaded successfully`);
+      console.log(`[Workflow] HTML size: ${snapshot.htmlBlob.length} bytes`);
+      console.log(`[Workflow] Snapshot status: ${snapshot.status}`);
+
       return {
         ...state,
         step: 'load',
         htmlContent: snapshot.htmlBlob
       };
     } catch (error) {
+      console.error(`[Workflow] ✗ Load error:`, error);
       return {
         ...state,
         step: 'load',
@@ -58,7 +65,7 @@ export class ExtractionWorkflow {
    */
   private async extractData(state: ExtractionState): Promise<ExtractionState> {
     try {
-      console.log('[Workflow] Extracting data from HTML');
+      console.log('[Workflow] ===== STEP 2: Extract Data =====');
 
       const fields = [
         'firstName',
@@ -75,9 +82,11 @@ export class ExtractionWorkflow {
         'labResults'
       ];
 
+      console.log(`[Workflow] Calling AI Service to extract ${fields.length} fields...`);
       const result = await aiService.extractFromHTML(state.htmlContent!, fields);
 
       if (!result.success) {
+        console.error(`[Workflow] ✗ Extraction failed: ${result.error}`);
         return {
           ...state,
           step: 'extract',
@@ -85,12 +94,16 @@ export class ExtractionWorkflow {
         };
       }
 
+      console.log('[Workflow] ✓ Extraction completed successfully');
+      console.log('[Workflow] Extracted data preview:', JSON.stringify(result.extractedData).substring(0, 200) + '...');
+
       return {
         ...state,
         step: 'extract',
         extractedData: result.extractedData
       };
     } catch (error) {
+      console.error('[Workflow] ✗ Extract error:', error);
       return {
         ...state,
         step: 'extract',
@@ -169,11 +182,14 @@ export class ExtractionWorkflow {
    */
   private async saveResults(state: ExtractionState): Promise<ExtractionState> {
     try {
-      console.log('[Workflow] Saving results');
+      console.log('[Workflow] ===== STEP 5: Save Results =====');
+
+      const newStatus = state.errors.length > 0 ? 'EXTRACTED' : 'VERIFIED';
+      console.log(`[Workflow] Updating snapshot status to: ${newStatus}`);
 
       // Update snapshot status
       await Snapshot.findByIdAndUpdate(state.snapshotId, {
-        status: state.errors.length > 0 ? 'EXTRACTED' : 'VERIFIED',
+        status: newStatus,
         groundTruth: {
           extracted: state.extractedData,
           analysis: state.analysis,
@@ -181,8 +197,11 @@ export class ExtractionWorkflow {
         }
       });
 
+      console.log('[Workflow] ✓ Snapshot updated');
+
       // Create or update EHR record if patient ID is provided
       if (state.patientId) {
+        console.log(`[Workflow] Creating EHR record for patient: ${state.patientId}`);
         await EHRRecord.create({
           patientId: state.patientId,
           snapshotId: state.snapshotId,
@@ -203,13 +222,19 @@ export class ExtractionWorkflow {
             confidence: state.verification?.confidence || 0.85
           }
         });
+        console.log('[Workflow] ✓ EHR record created');
+      } else {
+        console.log('[Workflow] No patient ID provided, skipping EHR record creation');
       }
+
+      console.log('[Workflow] ✓ Save completed successfully');
 
       return {
         ...state,
         step: 'save'
       };
     } catch (error) {
+      console.error('[Workflow] ✗ Save error:', error);
       return {
         ...state,
         step: 'save',
@@ -222,6 +247,12 @@ export class ExtractionWorkflow {
    * Execute the workflow sequentially through all steps
    */
   async execute(snapshotId: string, patientId?: string): Promise<ExtractionState> {
+    console.log('[Workflow] ========================================');
+    console.log('[Workflow] Starting Extraction Workflow');
+    console.log(`[Workflow] Snapshot ID: ${snapshotId}`);
+    console.log(`[Workflow] Patient ID: ${patientId || '(none)'}`);
+    console.log('[Workflow] ========================================');
+
     let state: ExtractionState = {
       snapshotId,
       patientId,
@@ -232,10 +263,16 @@ export class ExtractionWorkflow {
     try {
       // Execute workflow steps sequentially
       state = await this.loadSnapshot(state);
-      if (state.errors.length > 0) return state;
+      if (state.errors.length > 0) {
+        console.error('[Workflow] Workflow stopped due to errors in load step');
+        return state;
+      }
 
       state = await this.extractData(state);
-      if (state.errors.length > 0) return state;
+      if (state.errors.length > 0) {
+        console.error('[Workflow] Workflow stopped due to errors in extract step');
+        return state;
+      }
 
       // TEMPORARY: Skip analysis and verification to save API quota
       // state = await this.analyzeData(state);
@@ -246,8 +283,16 @@ export class ExtractionWorkflow {
 
       state = await this.saveResults(state);
 
+      if (state.errors.length > 0) {
+        console.error('[Workflow] Workflow completed with errors');
+      } else {
+        console.log('[Workflow] ✓✓✓ Workflow completed successfully ✓✓✓');
+      }
+
       return state;
     } catch (error) {
+      console.error('[Workflow] ✗✗✗ Workflow fatal error ✗✗✗');
+      console.error('[Workflow] Error:', error);
       return {
         ...state,
         step: 'error',
@@ -260,13 +305,21 @@ export class ExtractionWorkflow {
    * Execute workflow for an AI task
    */
   async executeTask(taskId: string): Promise<void> {
+    console.log('[Workflow] Executing task:', taskId);
+
     const task = await AITask.findById(taskId);
     if (!task) {
+      console.error(`[Workflow] Task not found: ${taskId}`);
       throw new Error('Task not found');
     }
 
+    console.log(`[Workflow] Task type: ${task.taskType}`);
+    console.log(`[Workflow] Target type: ${task.targetType}`);
+    console.log(`[Workflow] Target ID: ${task.targetId}`);
+
     try {
       // Update task status
+      console.log('[Workflow] Updating task status to PROCESSING...');
       await AITask.findByIdAndUpdate(taskId, {
         status: 'PROCESSING',
         startedAt: new Date(),
@@ -280,6 +333,7 @@ export class ExtractionWorkflow {
       });
 
       // Execute workflow
+      console.log('[Workflow] Starting workflow execution...');
       const result = await this.execute(
         task.targetId.toString(),
         task.input?.patientId
@@ -287,6 +341,9 @@ export class ExtractionWorkflow {
 
       // Update task with results
       if (result.errors.length > 0) {
+        console.error(`[Workflow] Task failed with ${result.errors.length} error(s)`);
+        console.error('[Workflow] Errors:', result.errors);
+
         await AITask.findByIdAndUpdate(taskId, {
           status: 'FAILED',
           error: result.errors.join('; '),
@@ -300,6 +357,8 @@ export class ExtractionWorkflow {
           }
         });
       } else {
+        console.log('[Workflow] ✓ Task completed successfully');
+
         await AITask.findByIdAndUpdate(taskId, {
           status: 'COMPLETED',
           output: {
@@ -318,6 +377,9 @@ export class ExtractionWorkflow {
         });
       }
     } catch (error) {
+      console.error('[Workflow] ✗ Task execution failed with exception');
+      console.error('[Workflow] Exception:', error);
+
       await AITask.findByIdAndUpdate(taskId, {
         status: 'FAILED',
         error: error instanceof Error ? error.message : 'Unknown error',
