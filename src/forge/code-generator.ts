@@ -45,8 +45,8 @@ CRITICAL REQUIREMENTS:
 1. Write ONLY browser-safe JavaScript (no Node.js APIs like 'fs', 'path', etc.)
 2. The code runs in page.evaluate() context - you cannot use Playwright selectors
 3. You have access to EHR_UTILS global object with these methods:
-   - EHR_UTILS.queryDeep(selector) - Query across shadow DOM boundaries
-   - EHR_UTILS.queryAllDeep(selector) - Get all matching elements
+   - EHR_UTILS.queryDeep(selector) - Query across shadow DOM boundaries (EXPENSIVE - use sparingly!)
+   - EHR_UTILS.queryAllDeep(selector) - Get all matching elements (EXPENSIVE)
    - EHR_UTILS.getTextDeep(element) - Extract text from element (handles shadow DOM)
    - EHR_UTILS.getAttr(element, attr) - Safely get attribute value
    - EHR_UTILS.getIframeText(iframe) - Extract text from iframe (same-origin only)
@@ -56,20 +56,40 @@ CRITICAL REQUIREMENTS:
 CODE STRUCTURE:
 - You MUST return a function named 'extract' that returns an object
 - The function should be self-contained and use try-catch for error handling
-- Use EHR_UTILS methods instead of direct DOM queries when possible
 - Return null for fields that cannot be found
 
-EXAMPLE OUTPUT:
+PERFORMANCE OPTIMIZATION (CRITICAL):
+1. **Avoid excessive queryDeep calls** - queryDeep is EXPENSIVE as it recursively traverses all shadow DOM boundaries
+2. **Find the container first** - Identify the main content frame/shadow root ONCE, then query within it:
+   \`\`\`javascript
+   // GOOD: Find the frame first, then query locally (fast)
+   const contentFrame = document.querySelector('#main-content-frame');
+   const firstName = contentFrame?.querySelector('.first-name')?.textContent?.trim();
+   const lastName = contentFrame?.querySelector('.last-name')?.textContent?.trim();
+
+   // BAD: Don't use queryDeep repeatedly for every field (very slow!)
+   const firstName = EHR_UTILS.queryDeep('.first-name');  // Scans entire DOM tree
+   const lastName = EHR_UTILS.queryDeep('.last-name');    // Scans entire DOM tree again
+   const address = EHR_UTILS.queryDeep('.address');       // Scans entire DOM tree again!
+   \`\`\`
+
+3. **Performance strategy**:
+   - Step 1: Use queryDeep() ONCE to find the correct iframe/shadow root container
+   - Step 2: Use standard querySelector() within that container for all fields
+   - Step 3: Only use queryDeep() again if elements are truly in nested shadow DOM
+
 \`\`\`javascript
 function extract() {
   try {
-    const patientName = EHR_UTILS.getTextDeep(EHR_UTILS.queryDeep('.patient-name'));
-    const dob = EHR_UTILS.getTextDeep(EHR_UTILS.queryDeep('.dob'));
+    // STEP 1: Find the correct container ONCE (use queryDeep if needed)
+    const contentFrame = EHR_UTILS.queryDeep('#main-content, .patient-details-container');
 
-    return {
-      patientName: patientName || null,
-      dateOfBirth: dob ? EHR_UTILS.parseDate(dob) : null
-    };
+    // STEP 2: Query WITHIN that frame using standard DOM (fast!)
+    const firstName = contentFrame?.querySelector('.first-name')?.textContent?.trim() || null;
+    const lastName = contentFrame?.querySelector('.last-name')?.textContent?.trim() || null;
+    const dob = contentFrame?.querySelector('.dob')?.textContent?.trim() || null;
+
+    return { firstName, lastName, dateOfBirth: dob };
   } catch (error) {
     console.error('Extraction error:', error);
     return null;
@@ -77,7 +97,56 @@ function extract() {
 }
 \`\`\`
 
-Remember: Keep it simple, handle errors gracefully, and return null for missing data.`;
+NAME EXTRACTION BEST PRACTICES:
+1. **Prefer Separated Fields**: ALWAYS look for individual firstName, lastName, middleName fields FIRST
+   - Check for selectors: .first-name, .last-name, .middle-name, [data-first-name], etc.
+   - Separated fields are more reliable than parsing full names
+   - Many names have multiple middle names or compound last names (e.g., "María José García López")
+
+2. **Avoid Manual Name Parsing**: If only fullName is available, DO NOT write custom parsing logic
+   - Names are complex: prefixes (Dr., Mr.), suffixes (Jr., III), hyphens, apostrophes
+   - Multiple middle names, compound last names
+   - Different cultures have different name orders
+
+3. **Name Parser Utility**: If you must parse a full name, use this helper:
+\`\`\`javascript
+function parseFullName(fullName) {
+  if (!fullName) return { firstName: null, middleName: null, lastName: null };
+
+  // Handle "LastName, FirstName MiddleName" format
+  if (fullName.includes(',')) {
+    const [lastName, rest] = fullName.split(',').map(s => s.trim());
+    const parts = rest.split(/\\s+/);
+    return {
+      firstName: parts[0] || null,
+      middleName: parts.slice(1).join(' ') || null,
+      lastName: lastName
+    };
+  }
+
+  // Handle "FirstName MiddleName LastName" format
+  const parts = fullName.trim().split(/\\s+/);
+  if (parts.length === 1) return { firstName: parts[0], middleName: null, lastName: null };
+  if (parts.length === 2) return { firstName: parts[0], middleName: null, lastName: parts[1] };
+
+  // For 3+ parts: first is firstName, last is lastName, everything else is middleName
+  return {
+    firstName: parts[0],
+    middleName: parts.slice(1, -1).join(' '),
+    lastName: parts[parts.length - 1]
+  };
+}
+\`\`\`
+
+4. **Name Extraction Priority**:
+   - ✅ Best: Separated fields (firstName, lastName, middleName elements)
+   - ✅ Good: Use parseFullName() helper for full name parsing
+   - ❌ Avoid: Custom name parsing logic (too complex, error-prone)
+
+Remember:
+- Performance: Find frame once, query within it (fast) > queryDeep for every field (slow)
+- Names: Separated fields > parseFullName helper > manual parsing (avoid)
+- Keep it simple, handle errors gracefully, return null for missing data`;
 
     // Truncate HTML to fit in context
     const truncatedHTML = htmlBlob.length > MAX_HTML_CHARS
@@ -100,10 +169,12 @@ Return ONLY the function code wrapped in triple backticks with javascript langua
 ${previousError}
 
 Please fix the error and generate corrected code. Common issues:
-- Using Playwright APIs (page.locator, etc.) - use EHR_UTILS instead
+- Using Playwright APIs (page.locator, etc.) - use document.querySelector or EHR_UTILS instead
 - Not handling null/undefined elements
 - Syntax errors
-- Using Node.js APIs`;
+- Using Node.js APIs
+- Expensive repeated queryDeep calls - find the container ONCE, then query locally
+- Complex manual name parsing - prefer separated fields or use the parseFullName helper`;
     }
 
     try {

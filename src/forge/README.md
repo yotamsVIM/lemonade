@@ -51,20 +51,24 @@ Uses Claude Bedrock to generate extraction functions:
 - Provides detailed instructions about EHR_UTILS API
 - Includes previous error feedback for retry attempts
 - Validates syntax before execution
+- **Performance-optimized prompts** - guides AI to find container once, then query locally
+- **Name parsing best practices** - prefers separated fields over parsing full names
 
-**Example Generated Code:**
+**Example Generated Code (Performance Optimized):**
 ```javascript
 function extract() {
   try {
-    const patientName = EHR_UTILS.getTextDeep(
-      EHR_UTILS.queryDeep('.patient-name')
-    );
-    const dob = EHR_UTILS.getTextDeep(
-      EHR_UTILS.queryDeep('.dob')
-    );
+    // STEP 1: Find the correct container ONCE (efficient)
+    const contentFrame = EHR_UTILS.queryDeep('#main-content, .patient-details');
+
+    // STEP 2: Query WITHIN that frame using standard DOM (fast!)
+    const firstName = contentFrame?.querySelector('.first-name')?.textContent?.trim() || null;
+    const lastName = contentFrame?.querySelector('.last-name')?.textContent?.trim() || null;
+    const dob = contentFrame?.querySelector('.dob')?.textContent?.trim() || null;
 
     return {
-      patientName: patientName || null,
+      firstName,
+      lastName,
       dateOfBirth: dob ? EHR_UTILS.parseDate(dob) : null
     };
   } catch (error) {
@@ -73,6 +77,16 @@ function extract() {
   }
 }
 ```
+
+**Performance Best Practices:**
+- ✅ Find iframe/shadow root container ONCE with queryDeep()
+- ✅ Use standard querySelector() within that container
+- ❌ Avoid repeated queryDeep() calls (expensive recursive traversal)
+
+**Name Extraction Best Practices:**
+- ✅ Prefer separated name fields (firstName, lastName, middleName)
+- ✅ Use provided parseFullName() helper for full name parsing
+- ❌ Avoid custom name parsing (handles multiple middle/last names incorrectly)
 
 ### 3. The Gauntlet (`gauntlet.ts`)
 
