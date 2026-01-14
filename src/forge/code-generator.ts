@@ -210,13 +210,13 @@ Please fix the error and generate corrected code. Common issues:
         new HumanMessage(userPrompt)
       ];
 
-      let iterationsLeft = 5; // Max iterations to prevent infinite loops
+      let iterationsLeft = 10; // Max iterations to prevent infinite loops (increased for complex HTML)
       let generatedCode: string | null = null;
 
       console.log('[CodeGenerator] Starting iterative HTML exploration...');
 
       while (iterationsLeft > 0 && !generatedCode) {
-        console.log(`[CodeGenerator] Iteration ${6 - iterationsLeft}/5`);
+        console.log(`[CodeGenerator] Iteration ${11 - iterationsLeft}/10`);
 
         const response = await modelWithTools.invoke(messages);
         const content = response.content as string;
@@ -251,8 +251,9 @@ Please fix the error and generate corrected code. Common issues:
           // No code found, prompt for code
           console.log('[CodeGenerator] No code found, prompting for code generation...');
           messages.push(new HumanMessage(
-            'Now generate the JavaScript extract() function based on your exploration. ' +
-            'Return ONLY the function code wrapped in triple backticks.'
+            'You have explored the HTML structure. Now generate the JavaScript extract() function based on your findings. ' +
+            'Look for input elements with name attributes or value attributes that match the ground truth data. ' +
+            'Return ONLY the function code wrapped in triple backticks with the javascript language tag.'
           ));
         } else {
           // Execute tool calls
@@ -279,6 +280,15 @@ Please fix the error and generate corrected code. Common issues:
                 tool_call_id: toolCallId
               }));
             }
+          }
+
+          // After 5 exploration iterations, nudge Claude to generate code
+          if (iterationsLeft === 5) {
+            console.log('[CodeGenerator] Nudging AI to generate code after exploration...');
+            messages.push(new HumanMessage(
+              'You\'ve explored the HTML. Now please generate the extract() function based on what you found. ' +
+              'Remember to look for <input> elements with name and value attributes.'
+            ));
           }
         }
 
