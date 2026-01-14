@@ -267,15 +267,28 @@ IMPORTANT EXTRACTION RULES:
       let htmlToSend = enrichedHtml;
       if (tokens > this.MAX_CONTEXT_TOKENS) {
         console.log('[AIService] Still exceeds token limit, applying truncation...');
-        // Use aggressive character-based truncation as fallback
-        const maxChars = Math.floor(this.MAX_CONTEXT_TOKENS * 4); // Rough estimate
+
+        // Use measured token ratio instead of hardcoded 4:1 assumption
+        const measuredRatio = tokens / enrichedHtml.length;
+        const safetyMargin = 0.9; // Be 10% more conservative
+        const maxChars = Math.floor((this.MAX_CONTEXT_TOKENS / measuredRatio) * safetyMargin);
+
+        console.log(`[AIService] Measured ratio: ${measuredRatio.toFixed(3)} tokens/char`);
+        console.log(`[AIService] Target chars: ${maxChars.toLocaleString()} (with 10% safety margin)`);
+
         htmlToSend = this.truncateHTML(enrichedHtml, {
           type: 'both',
           maxChars,
           startChars: Math.floor(maxChars * 0.2)
         });
+
         const finalTokens = this.countTokens(htmlToSend);
         console.log(`[AIService] After truncation: ${finalTokens.toLocaleString()} tokens`);
+
+        // Double-check we're under limit
+        if (finalTokens > this.MAX_CONTEXT_TOKENS) {
+          console.warn(`[AIService] WARNING: Still over limit after truncation! ${finalTokens} > ${this.MAX_CONTEXT_TOKENS}`);
+        }
       }
 
       console.log(`[AIService] Final HTML size for AI: ${(htmlToSend.length / 1024 / 1024).toFixed(2)}MB`);
