@@ -6,9 +6,9 @@
  */
 
 import { ChatBedrockConverse } from '@langchain/aws';
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-
-const MAX_HTML_CHARS = 50000; // Limit HTML sent to AI
+import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
+import { htmlCompressor } from '../backend/services/htmlCompressor';
+import { HTMLToolProvider } from '../backend/services/htmlTools';
 
 export interface CodeGenerationOptions {
   htmlBlob: string;
@@ -32,12 +32,40 @@ export class CodeGenerator {
   }
 
   /**
-   * Generate extraction code from HTML and ground truth
+   * Generate extraction code from HTML and ground truth using tool-based HTML exploration
    */
   async generateExtractor(options: CodeGenerationOptions): Promise<string> {
     const { htmlBlob, groundTruth, previousError } = options;
 
+    console.log('[CodeGenerator] Starting code generation with tool-based approach');
+    console.log(`[CodeGenerator] HTML size: ${(htmlBlob.length / 1024 / 1024).toFixed(2)}MB`);
+    console.log(`[CodeGenerator] Ground truth fields: ${Object.keys(groundTruth).join(', ')}`);
+
+    // Step 1: Compress HTML to remove non-semantic content
+    console.log('[CodeGenerator] Compressing HTML...');
+    const { compressedHTML, compressionRatio } = htmlCompressor.compress(htmlBlob);
+    console.log(`[CodeGenerator] Compression: ${compressionRatio.toFixed(1)}% reduction`);
+
+    // Step 2: Set up HTML tools for Claude to explore
+    const toolProvider = new HTMLToolProvider(compressedHTML);
+    const tools = toolProvider.getTools();
+
+    // Bind tools to the model
+    const modelWithTools = this.model.bindTools(tools);
+
     const systemPrompt = `You are an expert code generator for EHR (Electronic Health Record) data extraction.
+
+You have tools to explore the HTML structure:
+- get_html_stats: Get document statistics and potential data sections
+- search_html: Search for elements by CSS selector
+- search_html_text: Search for elements containing specific text
+- read_html_section: Read specific line ranges
+
+STRATEGY FOR CODE GENERATION:
+1. First, get HTML stats to understand the document structure
+2. Search for elements related to the ground truth fields (e.g., search for "patient name", "date of birth")
+3. Once you find the right selectors, generate extraction code targeting those elements
+4. Use the tools to explore, but generate code based on what you find
 
 Your task is to write browser-executable JavaScript code that extracts data from HTML pages.
 
@@ -148,21 +176,19 @@ Remember:
 - Names: Separated fields > parseFullName helper > manual parsing (avoid)
 - Keep it simple, handle errors gracefully, return null for missing data`;
 
-    // Truncate HTML to fit in context
-    const truncatedHTML = htmlBlob.length > MAX_HTML_CHARS
-      ? htmlBlob.substring(0, MAX_HTML_CHARS) + '\n\n[...HTML truncated...]'
-      : htmlBlob;
-
     let userPrompt = `Generate extraction code for this EHR page.
 
 EXPECTED OUTPUT (ground truth):
 ${JSON.stringify(groundTruth, null, 2)}
 
-HTML SAMPLE:
-${truncatedHTML}
+Use the HTML exploration tools to:
+1. Get document stats to understand structure
+2. Search for elements containing the ground truth values or related labels
+3. Identify the right CSS selectors
+4. Generate extraction code targeting those selectors
 
-Generate a JavaScript function named 'extract()' that extracts this data from the HTML.
-Return ONLY the function code wrapped in triple backticks with javascript language tag.`;
+Once you've explored the HTML and found the right elements, generate a JavaScript function named 'extract()' that extracts this data.
+Return the function code wrapped in triple backticks with javascript language tag.`;
 
     if (previousError) {
       userPrompt += `\n\nPREVIOUS ATTEMPT FAILED WITH ERROR:
@@ -178,28 +204,95 @@ Please fix the error and generate corrected code. Common issues:
     }
 
     try {
-      const messages = [
+      // Iterative tool-based exploration
+      const messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
         new SystemMessage(systemPrompt),
         new HumanMessage(userPrompt)
       ];
 
-      const response = await this.model.invoke(messages);
-      const content = response.content as string;
+      let iterationsLeft = 5; // Max iterations to prevent infinite loops
+      let generatedCode: string | null = null;
 
-      // Extract code from markdown code block
-      const codeMatch = content.match(/```(?:javascript|js)?\s*\n([\s\S]+?)\n```/);
-      if (codeMatch) {
-        return codeMatch[1].trim();
+      console.log('[CodeGenerator] Starting iterative HTML exploration...');
+
+      while (iterationsLeft > 0 && !generatedCode) {
+        console.log(`[CodeGenerator] Iteration ${6 - iterationsLeft}/5`);
+
+        const response = await modelWithTools.invoke(messages);
+        const content = response.content as string;
+        const toolCalls = (response as any).tool_calls || [];
+
+        // Add AI response to message history
+        messages.push(new AIMessage({
+          content,
+          tool_calls: toolCalls
+        }));
+
+        // Check if AI generated code (no more tool calls)
+        if (toolCalls.length === 0) {
+          console.log('[CodeGenerator] No tool calls, checking for generated code...');
+
+          // Extract code from markdown code block
+          const codeMatch = content.match(/```(?:javascript|js)?\s*\n([\s\S]+?)\n```/);
+          if (codeMatch) {
+            generatedCode = codeMatch[1].trim();
+            console.log('[CodeGenerator] ✓ Code extracted from response');
+            break;
+          }
+
+          // If no code block found, try to extract function directly
+          const functionMatch = content.match(/function\s+extract\s*\([^)]*\)\s*\{[\s\S]+\}/);
+          if (functionMatch) {
+            generatedCode = functionMatch[0].trim();
+            console.log('[CodeGenerator] ✓ Function extracted from response');
+            break;
+          }
+
+          // No code found, prompt for code
+          console.log('[CodeGenerator] No code found, prompting for code generation...');
+          messages.push(new HumanMessage(
+            'Now generate the JavaScript extract() function based on your exploration. ' +
+            'Return ONLY the function code wrapped in triple backticks.'
+          ));
+        } else {
+          // Execute tool calls
+          console.log(`[CodeGenerator] Executing ${toolCalls.length} tool call(s)...`);
+
+          for (const toolCall of toolCalls) {
+            const toolName = toolCall.name;
+            const toolArgs = toolCall.args;
+            const toolCallId = toolCall.id;
+
+            console.log(`[CodeGenerator] Tool: ${toolName}`);
+
+            try {
+              const toolResult = toolProvider.executeTool(toolName, toolArgs);
+              messages.push(new ToolMessage({
+                content: toolResult,
+                tool_call_id: toolCallId
+              }));
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+              console.error(`[CodeGenerator] Tool ${toolName} failed: ${errorMsg}`);
+              messages.push(new ToolMessage({
+                content: JSON.stringify({ error: errorMsg }),
+                tool_call_id: toolCallId
+              }));
+            }
+          }
+        }
+
+        iterationsLeft--;
       }
 
-      // If no code block found, try to extract function directly
-      const functionMatch = content.match(/function\s+extract\s*\([^)]*\)\s*\{[\s\S]+\}/);
-      if (functionMatch) {
-        return functionMatch[0].trim();
+      if (!generatedCode) {
+        throw new Error('Failed to generate code after maximum iterations');
       }
 
-      throw new Error('Could not extract valid JavaScript function from AI response');
+      console.log('[CodeGenerator] ✓ Code generation complete');
+      return generatedCode;
     } catch (error) {
+      console.error('[CodeGenerator] ✗ Code generation failed:', error);
       throw new Error(`Code generation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
