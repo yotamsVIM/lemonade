@@ -376,10 +376,15 @@ function resetPipelineUI() {
   captureDataEl.textContent = '';
   oracleDataEl.textContent = '';
   forgeDataEl.textContent = '';
-  captureDataEl.classList.remove('visible');
-  oracleDataEl.classList.remove('visible');
-  forgeDataEl.classList.remove('visible');
+  captureDataEl.classList.remove('visible', 'error');
+  oracleDataEl.classList.remove('visible', 'error');
+  forgeDataEl.classList.remove('visible', 'error');
   codeResultsEl.classList.remove('visible', 'success', 'error');
+
+  // Clear logged flags
+  delete captureDataEl.dataset.logged;
+  delete oracleDataEl.dataset.logged;
+  delete forgeDataEl.dataset.logged;
 }
 
 function startPipelinePolling(pipelineStartTime) {
@@ -446,6 +451,21 @@ function updatePipelineUI(pipelineStatus) {
     }
   } else if (stages.oracle.status === 'processing') {
     oracleStatusEl.textContent = '⏳';
+  } else if (stages.oracle.status === 'failed') {
+    oracleStatusEl.textContent = '❌';
+    const errorMsg = pipelineStatus.logs?.find(log => log.phase === 'ORACLE' && log.level === 'ERROR')?.msg || 'Unknown error';
+    oracleDataEl.textContent = `❌ Extraction failed:\n${errorMsg}`;
+    oracleDataEl.classList.add('visible', 'error');
+
+    if (!oracleDataEl.dataset.logged) {
+      addLog('error', `Oracle extraction failed: ${errorMsg}`);
+      oracleDataEl.dataset.logged = 'true';
+    }
+
+    // Stop polling on Oracle failure
+    clearInterval(pipelinePolling);
+    pipelinePolling = null;
+    clearPipelineState();
   }
 
   // Update Forge status
@@ -470,6 +490,21 @@ function updatePipelineUI(pipelineStatus) {
     }
   } else if (stages.forge.status === 'processing') {
     forgeStatusEl.textContent = '⏳';
+  } else if (stages.forge.status === 'failed') {
+    forgeStatusEl.textContent = '❌';
+    const errorMsg = pipelineStatus.logs?.find(log => log.phase === 'FORGE' && log.level === 'ERROR')?.msg || 'Unknown error';
+    forgeDataEl.textContent = `❌ Code generation failed:\n${errorMsg}`;
+    forgeDataEl.classList.add('visible', 'error');
+
+    if (!forgeDataEl.dataset.logged) {
+      addLog('error', `Forge code generation failed: ${errorMsg}`);
+      forgeDataEl.dataset.logged = 'true';
+    }
+
+    // Stop polling on Forge failure
+    clearInterval(pipelinePolling);
+    pipelinePolling = null;
+    clearPipelineState();
   }
 }
 
