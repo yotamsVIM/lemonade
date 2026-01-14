@@ -70,7 +70,13 @@ export class HTMLCompressor {
 
       // Step 1: Remove entire tags (style, script, etc.)
       this.REMOVE_TAGS.forEach(tag => {
-        $(tag).remove();
+        // Special handling for iframes: preserve those with data-iframe-content
+        if (tag === 'iframe') {
+          // Remove iframes WITHOUT data-iframe-content attribute
+          $('iframe:not([data-iframe-content])').remove();
+        } else {
+          $(tag).remove();
+        }
       });
 
       // Step 2: Strip non-essential attributes (fast pass)

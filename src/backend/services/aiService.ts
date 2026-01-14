@@ -63,13 +63,12 @@ export class AIService {
    * NOTE: This operation is expensive on large HTML. Only call when necessary.
    */
   private extractNestedContent(html: string): string {
-    // Skip if HTML is small (< 1MB) or doesn't contain nested content markers
-    if (html.length < 1000000 ||
-        (!html.includes('data-iframe-content') && !html.includes('data-shadow-root'))) {
+    // Skip if no nested content markers present
+    if (!html.includes('data-iframe-content') && !html.includes('data-shadow-root')) {
       return html;
     }
 
-    console.log('[AIService] Extracting nested content (large HTML detected)...');
+    console.log('[AIService] Extracting nested iframe/shadow DOM content...');
     const startTime = Date.now();
 
     const parts: string[] = [];
@@ -236,7 +235,6 @@ export class AIService {
     try {
       const systemPrompt = `You are an expert medical data extraction system specializing in EHR data.
 Extract structured data from EHR HTML snapshots with high accuracy.
-The HTML may contain nested iframe content in data-iframe-content attributes and Shadow DOM in data-shadow-root attributes.
 
 IMPORTANT EXTRACTION RULES:
 - Patient names often appear in "LastName, FirstName MiddleName" format (e.g., "Marsh, Lola TEST")
@@ -245,6 +243,7 @@ IMPORTANT EXTRACTION RULES:
   * lastName: Extract the name before the comma
   * middleName: Extract any additional names after the first name (may be full name or initials)
   * fullName: Keep the complete name string exactly as it appears
+- If multiple patients appear, prioritize the one with the most detailed information
 - Dates may appear in various formats (MM/DD/YYYY, Month DD, YYYY, etc.)
 - Extract only data that is clearly present - use null for missing fields
 - Return valid JSON format`;
