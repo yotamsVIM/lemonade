@@ -184,6 +184,7 @@ export class HTMLToolProvider {
 
   /**
    * Search for elements containing specific text
+   * WARNING: This can be slow on large DOMs. Use CSS selectors when possible.
    */
   private searchText(searchText: string, maxResults: number): string {
     console.log(`[HTMLToolProvider] Searching text: ${searchText}`);
@@ -192,25 +193,43 @@ export class HTMLToolProvider {
       const results: any[] = [];
       const lowerSearch = searchText.toLowerCase();
 
-      // Search all elements
-      this.$('*').each((_, element) => {
-        if (results.length >= maxResults) return false; // Stop when we have enough
+      // Optimization: Use :contains selector if cheerio supports it, otherwise manual search
+      // For large DOMs, limit search to likely containers
+      const searchScopes = ['body', 'form', 'table', 'main', 'article'];
+      let elementsChecked = 0;
+      const maxElementsToCheck = 5000; // Safety limit
 
-        const $el = this.$(element);
-        const text = $el.text();
+      for (const scope of searchScopes) {
+        if (results.length >= maxResults) break;
 
-        if (text.toLowerCase().includes(lowerSearch)) {
-          const tagName = (element as any).tagName || (element as any).name || 'unknown';
+        this.$(scope).find('*').each((_, element) => {
+          if (results.length >= maxResults || elementsChecked >= maxElementsToCheck) {
+            return false; // Stop early
+          }
 
-          results.push({
-            tag: tagName,
-            text: text.trim().length > 200 ? text.trim().substring(0, 200) + '...' : text.trim(),
-            id: $el.attr('id'),
-            class: $el.attr('class'),
-            html_preview: $el.html()?.substring(0, 200)
-          });
-        }
-      });
+          elementsChecked++;
+          const $el = this.$(element);
+
+          // Get own text only (not children) for efficiency
+          const ownText = $el.contents().filter(function() {
+            return (this as any).type === 'text';
+          }).text();
+
+          if (ownText.toLowerCase().includes(lowerSearch)) {
+            const tagName = (element as any).tagName || (element as any).name || 'unknown';
+
+            results.push({
+              tag: tagName,
+              text: ownText.trim().length > 200 ? ownText.trim().substring(0, 200) + '...' : ownText.trim(),
+              id: $el.attr('id'),
+              class: $el.attr('class'),
+              html_preview: $el.html()?.substring(0, 200)
+            });
+          }
+        });
+      }
+
+      console.log(`[HTMLToolProvider] Checked ${elementsChecked} elements, found ${results.length} results`);
 
       console.log(`[HTMLToolProvider] Found ${results.length} elements with text "${searchText}"`);
 

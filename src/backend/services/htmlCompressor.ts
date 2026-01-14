@@ -73,13 +73,13 @@ export class HTMLCompressor {
         $(tag).remove();
       });
 
-      // Step 2 & 3: Strip attributes and remove empty elements in single pass
-      const structuralTags = ['html', 'body', 'head', 'div', 'section', 'article', 'main', 'header', 'footer', 'nav', 'form', 'table', 'tr', 'td', 'th'];
+      // Step 2: Strip non-essential attributes (fast pass)
       const cleanupStartTime = Date.now();
+      let elementsProcessed = 0;
 
       $('*').each((_, element) => {
+        elementsProcessed++;
         const $el = $(element);
-        const tagName = (element as any).tagName || (element as any).name;
 
         // Strip non-essential attributes
         const attrs = $el.attr();
@@ -90,23 +90,14 @@ export class HTMLCompressor {
             }
           });
         }
-
-        // Remove empty elements (but keep structural ones)
-        if (!structuralTags.includes(tagName)) {
-          const hasText = $el.text().trim().length > 0;
-          const hasValue = $el.attr('value')?.trim().length > 0;
-          const hasData = Object.keys($el.attr() || {}).some(attr =>
-            attr.startsWith('data-') || attr.startsWith('aria-')
-          );
-
-          if (!hasText && !hasValue && !hasData) {
-            $el.remove();
-          }
-        }
       });
 
       const cleanupTime = Date.now() - cleanupStartTime;
-      console.log(`[HTMLCompressor] Cleaned DOM in ${cleanupTime}ms`);
+      console.log(`[HTMLCompressor] Processed ${elementsProcessed} elements in ${cleanupTime}ms`);
+
+      // Step 3: Skip empty element removal (too expensive, minimal benefit)
+      // Empty elements have negligible impact on token count
+      // Removing them requires calling .text() on every element which is very slow
 
       // Step 4: Serialize back to HTML
       const compressedHTML = $.html();

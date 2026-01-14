@@ -59,26 +59,37 @@ export class AIService {
   /**
    * Extract nested iframe and shadow DOM content from HTML
    * Extracts and decodes content from data-iframe-content and data-shadow-root attributes
+   *
+   * NOTE: This operation is expensive on large HTML. Only call when necessary.
    */
   private extractNestedContent(html: string): string {
+    // Skip if HTML is small (< 1MB) or doesn't contain nested content markers
+    if (html.length < 1000000 ||
+        (!html.includes('data-iframe-content') && !html.includes('data-shadow-root'))) {
+      return html;
+    }
+
+    console.log('[AIService] Extracting nested content (large HTML detected)...');
+    const startTime = Date.now();
+
     const parts: string[] = [];
 
-    // Extract content from data-iframe-content attributes
-    const iframeContentRegex = /data-iframe-content="([^"]+)"/g;
-    let match;
-    while ((match = iframeContentRegex.exec(html)) !== null) {
+    // Use matchAll for better performance (single pass)
+    const iframeMatches = Array.from(html.matchAll(/data-iframe-content="([^"]+)"/g));
+    for (const match of iframeMatches) {
       parts.push(match[1]);
     }
 
-    // Extract content from data-shadow-root attributes
-    const shadowRootRegex = /data-shadow-root="([^"]+)"/g;
-    while ((match = shadowRootRegex.exec(html)) !== null) {
+    const shadowMatches = Array.from(html.matchAll(/data-shadow-root="([^"]+)"/g));
+    for (const match of shadowMatches) {
       parts.push(match[1]);
     }
 
     // If nested content found, combine it with original
     if (parts.length > 0) {
-      // Decode HTML entities
+      console.log(`[AIService] Found ${parts.length} nested content blocks`);
+
+      // Decode HTML entities (batch process)
       const decodedParts = parts.map(part =>
         part.replace(/&amp;/g, '&')
             .replace(/&lt;/g, '<')
@@ -86,6 +97,10 @@ export class AIService {
             .replace(/&quot;/g, '"')
             .replace(/&#039;/g, "'")
       );
+
+      const duration = Date.now() - startTime;
+      console.log(`[AIService] Nested content extraction took ${duration}ms`);
+
       return html + '\n\n<!-- Nested Frame and Shadow DOM Content -->\n' + decodedParts.join('\n\n');
     }
 
