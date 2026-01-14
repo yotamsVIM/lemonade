@@ -93,12 +93,16 @@ export class AIService {
   }
 
   /**
-   * Count tokens in text using tiktoken or fallback to character estimation
+   * Count tokens in text using smart sampling to avoid CPU intensive operations
    * @param text - Text to count tokens for
    * @returns Estimated token count
    */
   private countTokens(text: string): number {
-    if (this.tokenEncoder) {
+    const SAMPLE_SIZE = 10000; // Sample first 10KB for estimation
+    const USE_SAMPLING_THRESHOLD = 50000; // Use sampling for texts > 50KB
+
+    // For small texts, use accurate tiktoken counting if available
+    if (text.length <= USE_SAMPLING_THRESHOLD && this.tokenEncoder) {
       try {
         return this.tokenEncoder.encode(text).length;
       } catch (error) {
@@ -106,7 +110,21 @@ export class AIService {
       }
     }
 
-    // Fallback: rough estimation (1 token ≈ 4 characters)
+    // For large texts, sample and extrapolate to avoid CPU spikes
+    if (text.length > USE_SAMPLING_THRESHOLD && this.tokenEncoder) {
+      try {
+        const sample = text.substring(0, SAMPLE_SIZE);
+        const sampleTokens = this.tokenEncoder.encode(sample).length;
+        const ratio = sampleTokens / SAMPLE_SIZE;
+        const estimated = Math.ceil(text.length * ratio);
+        console.log(`[AIService] Token estimation: sampled ${SAMPLE_SIZE} chars, ratio: ${ratio.toFixed(3)}, estimated: ${estimated.toLocaleString()}`);
+        return estimated;
+      } catch (error) {
+        console.warn('[AIService] Tiktoken sampling failed, falling back to character estimation');
+      }
+    }
+
+    // Fallback: rough estimation (1 token ≈ 4 characters for HTML)
     return Math.ceil(text.length / 4);
   }
 

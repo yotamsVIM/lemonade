@@ -58,33 +58,55 @@ export class HTMLCompressor {
     console.log(`[HTMLCompressor] Original size: ${(originalSize / 1024 / 1024).toFixed(2)}MB`);
 
     try {
+      const startTime = Date.now();
+
       // Load HTML into cheerio
       const $ = cheerio.load(html, {
         xmlMode: false
       });
+
+      const loadTime = Date.now() - startTime;
+      console.log(`[HTMLCompressor] Parsed HTML in ${loadTime}ms`);
 
       // Step 1: Remove entire tags (style, script, etc.)
       this.REMOVE_TAGS.forEach(tag => {
         $(tag).remove();
       });
 
-      // Step 2: Strip non-essential attributes from all elements
+      // Step 2 & 3: Strip attributes and remove empty elements in single pass
+      const structuralTags = ['html', 'body', 'head', 'div', 'section', 'article', 'main', 'header', 'footer', 'nav', 'form', 'table', 'tr', 'td', 'th'];
+      const cleanupStartTime = Date.now();
+
       $('*').each((_, element) => {
         const $el = $(element);
-        const attrs = $el.attr();
+        const tagName = (element as any).tagName || (element as any).name;
 
+        // Strip non-essential attributes
+        const attrs = $el.attr();
         if (attrs) {
           Object.keys(attrs).forEach(attrName => {
-            // Remove if not in keep list
             if (!this.shouldKeepAttribute(attrName)) {
               $el.removeAttr(attrName);
             }
           });
         }
+
+        // Remove empty elements (but keep structural ones)
+        if (!structuralTags.includes(tagName)) {
+          const hasText = $el.text().trim().length > 0;
+          const hasValue = $el.attr('value')?.trim().length > 0;
+          const hasData = Object.keys($el.attr() || {}).some(attr =>
+            attr.startsWith('data-') || attr.startsWith('aria-')
+          );
+
+          if (!hasText && !hasValue && !hasData) {
+            $el.remove();
+          }
+        }
       });
 
-      // Step 3: Remove empty elements (but keep structural ones)
-      this.removeEmptyElements($);
+      const cleanupTime = Date.now() - cleanupStartTime;
+      console.log(`[HTMLCompressor] Cleaned DOM in ${cleanupTime}ms`);
 
       // Step 4: Serialize back to HTML
       const compressedHTML = $.html();
@@ -163,34 +185,6 @@ export class HTMLCompressor {
     return false;
   }
 
-  /**
-   * Remove empty elements that don't contribute to extraction
-   * Keep structural elements like div, section, etc. even if empty
-   */
-  private removeEmptyElements($: cheerio.CheerioAPI): void {
-    const structuralTags = ['html', 'body', 'head', 'div', 'section', 'article', 'main', 'header', 'footer', 'nav', 'form', 'table', 'tr', 'td', 'th'];
-
-    $('*').each((_, element) => {
-      const $el = $(element);
-      const tagName = (element as any).tagName || (element as any).name;
-
-      // Don't remove structural elements
-      if (structuralTags.includes(tagName)) {
-        return;
-      }
-
-      // Remove if no text and no meaningful attributes
-      const hasText = $el.text().trim().length > 0;
-      const hasValue = $el.attr('value')?.trim().length > 0;
-      const hasData = Object.keys($el.attr() || {}).some(attr =>
-        attr.startsWith('data-') || attr.startsWith('aria-')
-      );
-
-      if (!hasText && !hasValue && !hasData) {
-        $el.remove();
-      }
-    });
-  }
 }
 
 // Export singleton instance
