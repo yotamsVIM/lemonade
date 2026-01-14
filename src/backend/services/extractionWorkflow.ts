@@ -383,7 +383,7 @@ export class ExtractionWorkflow {
           const forgeTask = await AITask.create({
             taskType: 'GENERATE',
             targetType: 'SNAPSHOT',
-            targetId: state.snapshotId,
+            targetId: task.targetId,
             priority: 'MEDIUM',
             input: {
               groundTruth: result.extractedData
@@ -393,7 +393,7 @@ export class ExtractionWorkflow {
           console.log(`[Workflow] ✓ Forge task created: ${forgeTask._id}`);
 
           // Update snapshot status to trigger Forge processing
-          await Snapshot.findByIdAndUpdate(state.snapshotId, {
+          await Snapshot.findByIdAndUpdate(task.targetId, {
             status: 'EXTRACTED'
           });
         }
