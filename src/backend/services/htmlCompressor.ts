@@ -60,8 +60,7 @@ export class HTMLCompressor {
     try {
       // Load HTML into cheerio
       const $ = cheerio.load(html, {
-        xmlMode: false,
-        decodeEntities: true
+        xmlMode: false
       });
 
       // Step 1: Remove entire tags (style, script, etc.)
@@ -122,8 +121,7 @@ export class HTMLCompressor {
   extractTextOnly(html: string): string {
     try {
       const $ = cheerio.load(html, {
-        xmlMode: false,
-        decodeEntities: true
+        xmlMode: false
       });
 
       // Remove all non-text elements
@@ -174,7 +172,7 @@ export class HTMLCompressor {
 
     $('*').each((_, element) => {
       const $el = $(element);
-      const tagName = element.tagName;
+      const tagName = (element as any).tagName || (element as any).name;
 
       // Don't remove structural elements
       if (structuralTags.includes(tagName)) {

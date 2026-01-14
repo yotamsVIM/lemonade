@@ -1,5 +1,7 @@
 import { ChatBedrockConverse } from '@langchain/aws';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { encoding_for_model } from 'tiktoken';
+import { htmlCompressor } from './htmlCompressor';
 
 export interface ExtractionResult {
   success: boolean;
@@ -20,6 +22,8 @@ interface HTMLTruncationStrategy {
  */
 export class AIService {
   private model: ChatBedrockConverse;
+  private tokenEncoder: any;
+  private readonly MAX_CONTEXT_TOKENS = 150000; // Conservative limit for Claude 3.5 Sonnet (200K total)
 
   constructor() {
     const awsRegion = process.env.AWS_REGION || 'us-east-1';
@@ -30,6 +34,16 @@ export class AIService {
     console.log(`[AIService] AWS Region: ${awsRegion}`);
     console.log(`[AIService] Bedrock Model: ${modelId}`);
     console.log(`[AIService] AWS Profile: ${process.env.AWS_PROFILE || '(default)'}`);
+
+    // Initialize tiktoken for accurate token counting
+    // Using gpt-4 encoding as approximation for Claude (similar tokenization)
+    try {
+      this.tokenEncoder = encoding_for_model('gpt-4');
+      console.log('[AIService] Token encoder initialized (gpt-4 approximation)');
+    } catch (error) {
+      console.warn('[AIService] Failed to initialize tiktoken, will use character-based estimation');
+      this.tokenEncoder = null;
+    }
 
     // AWS SDK will automatically use credentials from AWS_PROFILE environment variable
     this.model = new ChatBedrockConverse({
@@ -76,6 +90,24 @@ export class AIService {
     }
 
     return html;
+  }
+
+  /**
+   * Count tokens in text using tiktoken or fallback to character estimation
+   * @param text - Text to count tokens for
+   * @returns Estimated token count
+   */
+  private countTokens(text: string): number {
+    if (this.tokenEncoder) {
+      try {
+        return this.tokenEncoder.encode(text).length;
+      } catch (error) {
+        console.warn('[AIService] Tiktoken encoding failed, falling back to estimation');
+      }
+    }
+
+    // Fallback: rough estimation (1 token ≈ 4 characters)
+    return Math.ceil(text.length / 4);
   }
 
   /**
@@ -164,8 +196,8 @@ export class AIService {
    * @param fields - Array of field names to extract
    */
   async extractFromHTML(html: string, fields: string[]): Promise<ExtractionResult> {
-    console.log('[AIService] Starting HTML extraction');
-    console.log(`[AIService] Input HTML size: ${html.length} bytes`);
+    console.log('[AIService] Starting HTML extraction with intelligent processing');
+    console.log(`[AIService] Input HTML size: ${(html.length / 1024 / 1024).toFixed(2)}MB`);
     console.log(`[AIService] Fields to extract: ${fields.join(', ')}`);
 
     try {
@@ -184,30 +216,48 @@ IMPORTANT EXTRACTION RULES:
 - Extract only data that is clearly present - use null for missing fields
 - Return valid JSON format`;
 
-      // Extract nested content from iframes and shadow DOM
-      console.log('[AIService] Extracting nested iframe/shadow DOM content...');
-      const enrichedHtml = this.extractNestedContent(html);
-      console.log(`[AIService] Enriched HTML size: ${enrichedHtml.length} bytes`);
+      // Step 1: Compress HTML to remove non-semantic content
+      console.log('[AIService] Compressing HTML...');
+      const { compressedHTML, compressionRatio } = htmlCompressor.compress(html);
+      console.log(`[AIService] Compression: ${compressionRatio.toFixed(1)}% reduction`);
+      console.log(`[AIService] Compressed size: ${(compressedHTML.length / 1024 / 1024).toFixed(2)}MB`);
 
-      // Truncate HTML to fit AI context window
-      console.log('[AIService] Truncating HTML to fit context window...');
-      const htmlToSend = this.truncateHTML(enrichedHtml, {
-        type: 'both',
-        maxChars: 500000,
-        startChars: 100000
-      });
-      console.log(`[AIService] Final HTML size for AI: ${htmlToSend.length} bytes`);
+      // Step 2: Extract nested content from iframes and shadow DOM
+      console.log('[AIService] Extracting nested iframe/shadow DOM content...');
+      const enrichedHtml = this.extractNestedContent(compressedHTML);
+      console.log(`[AIService] Enriched HTML size: ${(enrichedHtml.length / 1024 / 1024).toFixed(2)}MB`);
+
+      // Step 3: Count tokens to determine if it fits in context window
+      const tokens = this.countTokens(enrichedHtml);
+      console.log(`[AIService] Token count: ${tokens.toLocaleString()} (max: ${this.MAX_CONTEXT_TOKENS.toLocaleString()})`);
+
+      // Step 4: Truncate if still too large
+      let htmlToSend = enrichedHtml;
+      if (tokens > this.MAX_CONTEXT_TOKENS) {
+        console.log('[AIService] Still exceeds token limit, applying truncation...');
+        // Use aggressive character-based truncation as fallback
+        const maxChars = Math.floor(this.MAX_CONTEXT_TOKENS * 4); // Rough estimate
+        htmlToSend = this.truncateHTML(enrichedHtml, {
+          type: 'both',
+          maxChars,
+          startChars: Math.floor(maxChars * 0.2)
+        });
+        const finalTokens = this.countTokens(htmlToSend);
+        console.log(`[AIService] After truncation: ${finalTokens.toLocaleString()} tokens`);
+      }
+
+      console.log(`[AIService] Final HTML size for AI: ${(htmlToSend.length / 1024 / 1024).toFixed(2)}MB`);
 
       const userPrompt = `Extract the following fields from this EHR HTML:
 Fields to extract: ${fields.join(', ')}
 
-HTML Content (${enrichedHtml.length} bytes, nested content extracted):
+HTML Content (compressed and processed, ${htmlToSend.length} bytes):
 ${htmlToSend}
 
 Return a JSON object with the extracted data. Use null for fields not found.
 Example format: { "firstName": "John", "lastName": "Doe", "middleName": "M", "fullName": "Doe, John M", "dateOfBirth": "01/15/1980" }`;
 
-      // Invoke AI and parse response
+      // Step 5: Invoke AI and parse response
       const content = await this.invokeAI(systemPrompt, userPrompt);
 
       console.log('[AIService] Parsing JSON response...');
