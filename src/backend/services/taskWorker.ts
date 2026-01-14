@@ -117,6 +117,10 @@ export class TaskWorker {
           console.log(`[TaskWorker] Routing to CLASSIFY handler...`);
           await this.handleClassifyTask(task);
           break;
+        case 'GENERATE':
+          console.log(`[TaskWorker] Routing to GENERATE handler (Forge)...`);
+          await this.handleGenerateTask(task);
+          break;
         default:
           throw new Error(`Unknown task type: ${task.taskType}`);
       }
@@ -170,6 +174,57 @@ export class TaskWorker {
    */
   private async handleExtractTask(task: any): Promise<void> {
     await extractionWorkflow.executeTask(task._id.toString());
+  }
+
+  /**
+   * Handle GENERATE task (Forge code generation)
+   */
+  private async handleGenerateTask(task: any): Promise<void> {
+    const { Snapshot } = await import('../models/Snapshot');
+    const { codeGenerator } = await import('../../forge/code-generator');
+
+    await AITask.findByIdAndUpdate(task._id, {
+      status: 'PROCESSING',
+      startedAt: new Date()
+    });
+
+    // Load snapshot
+    const snapshot = await Snapshot.findById(task.targetId);
+    if (!snapshot) {
+      throw new Error('Snapshot not found');
+    }
+
+    if (!snapshot.groundTruth || !snapshot.htmlBlob) {
+      throw new Error('Snapshot missing ground truth or HTML');
+    }
+
+    console.log('[TaskWorker] Generating extraction code...');
+
+    // Generate code using Forge
+    const generatedCode = await codeGenerator.generateExtractor({
+      htmlBlob: snapshot.htmlBlob,
+      groundTruth: snapshot.groundTruth.extracted || snapshot.groundTruth
+    });
+
+    console.log(`[TaskWorker] ✓ Generated ${generatedCode.length} characters of code`);
+
+    // Save code to snapshot
+    await Snapshot.findByIdAndUpdate(task.targetId, {
+      extractorCode: generatedCode,
+      status: 'VERIFIED' // Mark as verified after code generation
+    });
+
+    // Update task
+    await AITask.findByIdAndUpdate(task._id, {
+      status: 'COMPLETED',
+      output: {
+        code: generatedCode,
+        codeLength: generatedCode.length
+      },
+      completedAt: new Date()
+    });
+
+    console.log('[TaskWorker] ✓ Forge task completed');
   }
 
   /**

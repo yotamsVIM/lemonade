@@ -375,6 +375,28 @@ export class ExtractionWorkflow {
             }
           }
         });
+
+        // Automatically trigger Forge (code generation) after successful extraction
+        if (result.extractedData && Object.keys(result.extractedData).length > 0) {
+          console.log('[Workflow] Creating Forge task for code generation...');
+
+          const forgeTask = await AITask.create({
+            taskType: 'GENERATE',
+            targetType: 'SNAPSHOT',
+            targetId: state.snapshotId,
+            priority: 'MEDIUM',
+            input: {
+              groundTruth: result.extractedData
+            }
+          });
+
+          console.log(`[Workflow] ✓ Forge task created: ${forgeTask._id}`);
+
+          // Update snapshot status to trigger Forge processing
+          await Snapshot.findByIdAndUpdate(state.snapshotId, {
+            status: 'EXTRACTED'
+          });
+        }
       }
     } catch (error) {
       console.error('[Workflow] ✗ Task execution failed with exception');
